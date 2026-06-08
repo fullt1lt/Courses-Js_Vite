@@ -1,1190 +1,1051 @@
-# Лекция 9. События и формы: как страница «реагирует» на пользователя
+# Лекция 9. BOM и Storage: окружение браузера и хранение данных
 
-![](./images/events.webp)
+![](./images/BOM.png)
 
 ## Вступление
 
-В прошлой лекции мы рассмотрели, как браузер отображает страницу, и узнали о том, что такое DOM.  
-Но сам по себе DOM - это просто структура данных, которая описывает элементы на странице.
+В прошлых лекциях мы работали с `DOM`. То есть с тем, что находится внутри страницы: элементы, текст, классы, формы, события.
 
-Чтобы сделать страницу интерактивной и позволить ей реагировать на действия пользователя, нам нужны **события**.
+DOM - это когда JavaScript взаимодействует с  HTML:
+нашли кнопку → повесили событие → поменяли текст → добавили класс → показали сообщение.
 
-Например:
-- пользователь *кликает* по кнопке,
-- заполняет форму,
-- перемещает мышь по странице,
-- нажимает клавиши.
+Но браузер - это не только `HTML`.
 
-Браузер фиксирует эти действия и может вызывать ваш код в нужный момент.
+Когда вы открываете сайт, вокруг страницы есть ещё целая среда: адресная строка, история переходов, вкладка, таймеры, хранилище данных.
+И JavaScript тоже умеет с этим работать. Вот эта часть и называется `BOM`.
 
-### Что такое события
+### Что такое BOM?
 
-**События (events)** - это действия или происшествия, которые происходят в браузере и могут быть обнаружены с помощью JavaScript.  
-События могут быть вызваны пользователем (клики мышью, нажатия клавиш, отправка форм) или происходить автоматически (загрузка страницы, изменение размера окна). [Документация по событиям](https://doka.guide/js/events/)
+`BOM (Browser Object Model)`, то есть модель объектов браузера. Это набор объектов, которые предоставляет браузер для взаимодействия с ним.
 
-Примеры событий:
-- `click` - происходит при клике мышью на элемент
-- `submit` - происходит при отправке формы
-- `keydown` - происходит при нажатии клавиши на клавиатуре
-- `load` - происходит, когда страница полностью загружена
+Если сказать простыми словами:
+- `DOM` - это модель объектов документа, то есть всего, что внутри страницы.
+- `BOM` - это модель объектов браузера, то есть всего, что вокруг страницы.
 
-То есть события позволяют нам “слушать” действия пользователя и реагировать на них, выполняя код или изменяя содержимое страницы.
+`DOM` - отвечает за `document` и его элементы. А `BOM` - отвечает за `window` и его свойства и методы.
 
-> **Важно:** события - фундаментальная часть взаимодействия между пользователем и веб-страницей. Они позволяют создавать динамические и интерактивные интерфейсы, которые реагируют на действия пользователя в реальном времени.
+### Как понять разницу между DOM и BOM?
 
-### Обработчик событий - это реакция на событие
+`DOM` - это когда вы меняете интерфейс страницы:
+- показать/скрыть элемент
+- изменить текст
+- добавить класс
+- отследить событие
 
-Главная идея проста: есть элемент на странице, на нём происходит событие, и мы хотим, чтобы при этом событии выполнялась функция.  
-Эта функция называется **обработчиком события**.
+`BOM` - это когда вы взаимодействуете с браузером:
+- получить URL страницы
+- открыть новое окно
+- установить таймер
+- сохранить данные в хранилище
 
-Схема взаимодействия:
+## Взаимодействие с BOM
 
-```text
-Событие → Обработчик события → Реакция (код)
-```
+Главная идея в том, что для взаимодействия с BOM мы используем глобальный объект `window`. Он представляет собой окно браузера и содержит все свойства и методы для работы с ним.
 
-Пример:
-1. пользователь кликает по кнопке “Добавить в корзину”
-2. код реагирует на это событие и добавляет товар в корзину
-3. счётчик товаров увеличивается
-4. пользователь видит, что товар добавлен
+Через `window` вы получаете доступ к:
+- `location` - для работы с URL
+- `history` - для работы с историей переходов
+- `navigator` - для информации о браузере и устройстве
+- `setTimeout` и `setInterval` - для работы с таймерами
+- `localStorage` и `sessionStorage` - для хранения данных
 
-### Почему формы важны
-
-Форма - один из самых распространённых способов взаимодействия пользователя с веб-страницей.
-
-Регистрация, логин, поиск, отправка комментариев, фильтры - всё это формы.
-
-Форма почти всегда требует одного и того же:
-1. прочитать данные, которые пользователь ввёл в форму
-2. проверить данные на валидность
-3. обработать “отправку” (в этой лекции - без API)
-4. показать результат пользователю (успех или ошибки)
-
-И тут важный момент: браузер по умолчанию отправляет форму и перезагружает страницу.  
-Но с помощью JavaScript мы можем предотвратить это поведение и управлять формой самостоятельно.
-
----
-
-## Обработчики событий
-
-Чтобы работать с событиями, нам нужно уметь делать главное:
-- найти элемент в DOM
-- “подписаться” на событие
-- выполнить код, когда событие произошло
-
-### Способ 1. События в HTML
-
-Самый простой способ назначить обработчик - использовать атрибуты в HTML.
-
-```html
-<button onclick="alert('Button clicked!')">Click me</button>
-```
-
-При клике по кнопке выполнится код из `onclick`. Но этот способ не рекомендуется, потому что:
-- смешивает разметку и логику
-- сложно поддерживать и масштабировать
-- нельзя назначить несколько обработчиков на одно событие
-
-
-### Способ 2. `addEventListener` - основной способ работать с событиями
-
-Самый распространённый способ добавить обработчик - использовать метод `addEventListener()`.
-
-Синтаксис:
+И важный момент: в браузерном JavaScript `document` доступен как `window.document`. Поэтому, когда вы пишете `document`, вы на самом деле обращаетесь к `window.document`.
 
 ```javascript
-element.addEventListener("event", handler);
+console.log(window.document === document); // true
 ```
 
-**Пример:**
+### window - глобальный объект
 
-```html
-<button id="myButton">Нажми меня</button>
-```
+Мы уже сказали ключевую мысль:
+
+если мы работаем с окружением браузера, то почти всегда это начинается с объекта `window`.
+
+`window` - это глобальный объект, который представляет окно браузера, в котором открыт ваш сайт.
+
+И важно понимать: `window` существует всегда, даже если вы его не пишете явно. А значит мы можем обращаться к его свойствам и методам напрямую, без указания `window`.
 
 ```javascript
-const btn = document.getElementById("myButton");
+console.log(document === window.document); // true
+console.log(location === window.location); // true
+console.log(history === window.history);   // true
+```
 
-btn.addEventListener("click", function () {
-  alert("Кнопка была нажата!");
+JavaScript в браузере просто позволяет нам опускать `window` для удобства. Но если нужно, мы всегда можем его указать.
+
+### navigator - информация о браузере и устройстве
+
+`navigator` даёт информацию о среде пользователя: язык интерфейса, состояние сети, платформу, поддержку сенсорного ввода и другие возможности.
+
+Примеры:
+
+```javascript
+console.log(navigator.language); // например, "ru-RU"
+console.log(navigator.onLine); // true / false
+console.log(navigator.maxTouchPoints); // 0, 1, 5...
+```
+
+**Практика: отслеживание сети**
+
+```javascript
+window.addEventListener("online", () => {
+  console.log("Интернет снова доступен");
+});
+
+window.addEventListener("offline", () => {
+  console.log("Соединение потеряно");
 });
 ```
 
-Теперь при клике по кнопке выполняется обработчик.
+**Важно про `userAgent`**
 
-### Важный момент: передаём функцию, а не вызываем её
+`navigator.userAgent` можно прочитать, но строить логику приложения только на нём не стоит. Строка `userAgent` может меняться и подделываться, поэтому для реальных проверок лучше использовать feature detection (проверку наличия конкретных API).
 
-Очень частая ошибка:
+### location - работа с URL
+
+`location` - это объект, который содержит информацию о текущем URL и позволяет управлять навигацией.
+Через `location` мы можем:
+- получить текущий URL
+- перейти на другую страницу
+- перезагрузить страницу
+- прочитать query-параметры `(?page=2&sort=price)`;
+- прочитать `hash (#section)`.
+
+> Помним: `location` - это свойство объекта `window`.
 
 ```javascript
-btn.addEventListener("click", handleClick());
+console.log(location === window.location); // true
 ```
 
-Так делать нельзя, потому что `handleClick()` вызовется сразу, а в `addEventListener` попадёт результат вызова.
+#### Основные части URL
 
-**Правильно:**
+![URL](./images/structure-url.jpg)
 
-```javascript
-function handleClick() {
-  console.log("Кнопка была нажата!");
-}
+Возьмем пример адреса: 
 
-btn.addEventListener("click", handleClick);
+```
+https://example.com/products?page=2&sort=price#top
 ```
 
-Или так (для коротких обработчиков):
+Внутри него есть несколько частей:
+- протокол: https:
+- домен: example.com
+- путь: /products
+- query: ?page=2&sort=price
+- hash: #top
+
+#### Самые полезные свойства `location`
+
+**`location.href` - полный URL страницы**
 
 ```javascript
-btn.addEventListener("click", () => {
-  console.log("Кнопка была нажата!");
+console.log(location.href); // https://example.com/products?page=2&sort=price#top
+```
+
+**`location.pathname` - путь страницы**
+
+```javascript
+console.log(location.pathname); // "/products"
+```
+
+Это удобно, если вы хотите понять *“на какой странице мы сейчас”*.
+
+**`location.search` - query-параметры**
+
+```javascript
+console.log(location.search); // "?page=2&sort=price"
+```
+
+Важно: `search` возвращает строку, которая начинается с `?`. Если вам нужно получить конкретные параметры, то можно использовать `URLSearchParams`.
+
+```javascript
+const params = new URLSearchParams(location.search);
+console.log(params.get('page')); // "2"
+console.log(params.get('sort')); // "price"
+```
+
+**`location.hash` - хэш страницы**
+
+```javascript
+console.log(location.hash); // "#top"
+```
+
+`Hash` часто используют для:
+- навигации внутри страницы (например, к определённому разделу)
+- хранения состояния (например, открыто ли модальное окно)
+
+**Практический пример:**
+
+Часто делают так: если `page` не указан, считаем что это страница `1`.
+```javascript
+const params = new URLSearchParams(location.search);
+const page = params.get('page') || '1';
+console.log(`Текущая страница: ${page}`);
+```
+
+#### Методы `location`
+
+**`location.assign(url)` - перейти на другую страницу**
+
+```javascript
+location.assign('https://google.com');
+```
+Этот метод изменяет URL и загружает новую страницу. Важно: при использовании `assign` текущая страница сохраняется в истории, то есть пользователь может нажать “Назад” и вернуться.
+
+**`location.replace(url)` - заменить текущую страницу**
+
+Разница между `assign` и `replace` в том, что `replace` не сохраняет текущую страницу в истории. То есть после вызова `replace` пользователь не сможет вернуться на предыдущую страницу.
+
+```javascript
+location.replace('https://google.com');
+```
+
+**location.reload() - перезагрузка страницы**
+
+```javascript
+location.reload();
+```
+
+Этот метод перезагружает текущую страницу.
+Раньше можно было встретить `location.reload(true)`, но сейчас этот параметр считается устаревшим и в современных браузерах обычно игнорируется.
+
+### history - история переходов
+
+`history` - это объект, который позволяет управлять историей переходов пользователя. Через `history` мы можем:
+- перейти на предыдущую страницу
+- перейти на следующую страницу
+- перейти на определённую страницу в истории
+- добавить новую запись в историю
+
+Как и раньше, `history` - это свойство объекта `window`.
+```javascript
+console.log(history === window.history); // true
+```
+
+#### Основные методы `history`
+
+**history.length - количество записей в истории**
+
+`history.length` возвращает количество записей в истории. Это может быть полезно, если вы хотите понять, сколько страниц пользователь уже посетил.
+
+```javascript
+console.log(history.length); // например, 5
+```
+
+Это не *“количество страниц на сайте”*, а длина истории вкладки.
+
+**history.back() - перейти на предыдущую страницу**
+
+```javascript
+history.back();
+```
+
+Этот метод аналог кнопки “Назад” в браузере. Он возвращает пользователя на предыдущую страницу в истории.
+
+**history.forward() - перейти на следующую страницу**
+
+```javascript
+history.forward();
+```
+
+Этот метод аналог кнопки “Вперёд” в браузере. Он возвращает пользователя на следующую страницу в истории, если он уже нажимал “Назад”.
+
+**history.go(n) - перейти на n страниц в истории**
+
+`go(n)` принимает число:
+- если `n` положительное, то переходит вперёд на `n` страниц
+- если `n` отрицательное, то переходит назад на `n` страниц
+
+```javascript
+history.go(-2); // вернуться на 2 страницы назад
+history.go(3);  // перейти на 3 страницы вперёд
+```
+
+#### История без перезагрузки: `pushState` и `replaceState`
+
+Эти методы позволяют изменять `URL` без перезагрузки страницы, что полезно для одностраничных приложений `SPA(Single Page Application)`.
+
+Сейчас нам важна идея того, что мы можем менять URL и историю без перезагрузки, а не детали реализации. Поэтому мы не будем углубляться в эти методы сейчас, а вернёмся к ним в следующих лекциях.
+
+**history.pushState(state, title, url)**
+
+Этот метод добавляет новую запись в историю с указанным `state`, `title` и `url`. Страница не перезагружается, но URL меняется.
+
+```javascript
+history.pushState({ page: "products" }, "", "/products");
+```
+
+После этого URL изменится на `/products`, но страница не перезагрузится. И в истории появится новая запись.
+
+`state` - это объект, который может содержать любые данные, связанные с этим состоянием. Он доступен через `history.state`.
+
+**history.replaceState(state, title, url)**
+
+Этот метод заменяет текущую запись в истории на новую с указанным `state`, `title` и `url`. Страница не перезагружается, но URL меняется.
+
+```javascript
+history.replaceState({ page: "products" }, "", "/products");
+```
+
+Разница между `pushState` и `replaceState` в том, что `pushState` добавляет новую запись в историю, а `replaceState` заменяет текущую запись. После `replaceState` нельзя вернуться именно к заменённой записи, но более ранние записи истории остаются.
+
+**Событие popstate**
+
+Когда пользователь нажимает “Назад” или “Вперёд”, или когда вызывается `history.go()`, браузер генерирует событие `popstate`. Это событие позволяет нам отследить изменения в истории и реагировать на них.
+
+```javascript
+window.addEventListener("popstate", function (event) {
+  console.log("popstate:", event.state);
 });
 ```
 
-**Мини-правило:**
-> в `addEventListener` мы передаём ссылку на функцию.
+`event.state` - это то, что вы передавали в `pushState/replaceState`.
 
-### Почему обработчик лучше выносить в отдельную функцию
+#### Мини-пример: мини-роутер на `pushState + popstate`
 
-Вынесенный обработчик:
-- проще читать
-- проще переиспользовать
-- можно удалить через `removeEventListener`
+Ниже упрощённая схема клиентского роутинга без библиотек:
 
 ```javascript
-const buyBtn = document.getElementById("buy-btn");
-
-function addToCart() {
-  console.log("Product added");
-}
-
-buyBtn.addEventListener("click", addToCart);
-```
-
-### Несколько обработчиков на один элемент
-
-`addEventListener` позволяет добавлять несколько обработчиков на одно событие:
-
-```javascript
-buyBtn.addEventListener("click", () => console.log("Log 1"));
-buyBtn.addEventListener("click", () => console.log("Log 2"));
-```
-
-Обе функции выполнятся при клике.
-
-### Удаление обработчика события: `removeEventListener`
-
-Иногда обработчик нужно удалить. Это делается через `removeEventListener()`.
-
-```javascript
-const buyBtn = document.getElementById("buy-btn");
-
-function addToCart() {
-  console.log("Added once");
-  buyBtn.removeEventListener("click", addToCart);
-}
-
-buyBtn.addEventListener("click", addToCart);
-```
-
-**Важно:** удалить можно только ту функцию, на которую есть ссылка.
-
-Неправильно (не сработает):
-
-```javascript
-buyBtn.addEventListener("click", () => console.log("Click"));
-buyBtn.removeEventListener("click", () => console.log("Click"));
-```
-
-Правильно:
-
-```javascript
-const handleClick = () => console.log("Click");
-
-buyBtn.addEventListener("click", handleClick);
-buyBtn.removeEventListener("click", handleClick);
-```
-
-### Способ 3. `onclick` - альтернативный способ
-
-Можно назначить обработчик как DOM-свойство:
-
-```javascript
-buyBtn.onclick = function () {
-  console.log("Clicked");
+const routes = {
+  "/": "<h1>Главная</h1>",
+  "/about": "<h1>О нас</h1>",
+  "/contacts": "<h1>Контакты</h1>",
 };
-```
 
-Но если назначить обработчик повторно, предыдущий будет перезаписан:
-
-```javascript
-buyBtn.onclick = function () {
-  console.log("First handler");
-};
-
-buyBtn.onclick = function () {
-  console.log("Second handler");
-};
-```
-
-Поэтому в проектах чаще используют `addEventListener()`.
-
----
-
-#### События, которые чаще всего используют на практике
-
-Событий в браузере много, но в реальных проектах постоянно встречаются одни и те же. Удобно держать их “группами”.
-
-**1) События мыши**
-- `click` - обычный клик
-- `dblclick` - двойной клик
-- `contextmenu` - клик правой кнопкой
-- `mousedown / mouseup` - нажал / отпустил кнопку мыши
-- `mousemove` - движение мыши (осторожно: событие частое)
-- `mouseenter / mouseleave` - курсор вошёл / вышел (не всплывают)
-- `mouseover / mouseout` - навёл / ушёл (всплывают)
-
-Мини-правило: для “наведения” чаще используют `mouseenter / mouseleave`.
-
-**2) События клавиатуры**
-- `keydown` - клавиша нажата
-- `keyup` - клавиша отпущена
-
-`keypress` сейчас почти не используют.
-
-**3) События фокуса (важны для форм)**
-- `focus` - поле получило фокус
-- `blur` - поле потеряло фокус
-- `focusin / focusout` - то же самое, но всплывают
-
-Мини-правило: валидацию часто делают на `blur`, а подсказки - на `focus`.
-
-**4) События ввода**
-- `input` - значение меняется “в реальном времени”
-- `change` - значение зафиксировано
-- `paste` - вставка из буфера
-- `cut` - вырезание
-- `copy` - копирование
-
-**5) События формы**
-- `submit` - отправка формы
-- `reset` - сброс формы
-
-**6) События документа и окна**
-- `DOMContentLoaded` - DOM построен
-- `load` - страница полностью загрузилась
-- `scroll` - прокрутка (событие частое)
-- `resize` - изменение размера окна
-
-Мини-правило: если нужно работать с DOM - чаще хватает `DOMContentLoaded`.
-
----
-
-## Объект события `event`
-
-![](./images/event_delegation.png)
-
-Мы научились слушать события и реагировать на них.  
-Но как узнать, что именно произошло и на каком элементе?
-
-Для этого браузер передаёт в обработчик объект события - `event`.
-
-### Что такое `event`
-
-Когда вы вешаете обработчик, браузер вызывает его с аргументом `event`.
-
-```javascript
-const buyBtn = document.getElementById("buy-btn");
-
-buyBtn.addEventListener("click", function (event) {
-  console.log(event);
-});
-```
-
-`event` содержит информацию о событии: тип, целевой элемент, координаты, нажатые клавиши и т.д.
-
-Примерный вид (упрощённо):
-
-```text
-{
-  type: "click",
-  target: button#buy-btn,
-  clientX: 100,
-  clientY: 200,
-  ...
+function renderRoute(pathname) {
+  const app = document.getElementById("app");
+  app.innerHTML = routes[pathname] || "<h1>404 (client)</h1>";
 }
-```
 
-### `event.type` - какое событие произошло
+document.addEventListener("click", (event) => {
+  const link = event.target.closest("[data-link]");
+  if (!link) return;
 
-```javascript
-buyBtn.addEventListener("click", function (event) {
-  console.log(event.type); // "click"
-});
-```
-
-### `event.target` - на каком элементе произошло событие
-
-`event.target` указывает на элемент, по которому кликнули реально.
-
-```html
-<button id="buy-btn">
-  <span class="icon">🛒</span>
-  Buy
-</button>
-```
-
-Если кликнуть по `span.icon`, то `target` будет `span`, а не `button`:
-
-```javascript
-buyBtn.addEventListener("click", function (event) {
-  console.log(event.target);
-});
-```
-
-### `event.currentTarget` - элемент, на котором висит обработчик
-
-`event.currentTarget` - элемент, на который повешен обработчик.
-
-```javascript
-buyBtn.addEventListener("click", function (event) {
-  console.log(event.currentTarget); // button#buy-btn
-});
-```
-
-**Мини-правило:**
-- `target` - где событие произошло
-- `currentTarget` - где стоит обработчик
-
-### `event.preventDefault()` - отменить стандартное поведение
-
-Иногда браузер выполняет действие сам (переход по ссылке, отправка формы).  
-Если мы хотим управлять этим - используем `event.preventDefault()`.
-
-**Пример со ссылкой:**
-
-```html
-<a href="https://google.com" id="link">Go</a>
-```
-
-```javascript
-const link = document.getElementById("link");
-
-link.addEventListener("click", function (event) {
   event.preventDefault();
-  console.log("Ссылка не перешла, потому что мы отменили поведение");
+  const url = link.getAttribute("href");
+
+  history.pushState({ pathname: url }, "", url);
+  renderRoute(url);
 });
+
+window.addEventListener("popstate", () => {
+  renderRoute(location.pathname);
+});
+
+renderRoute(location.pathname);
 ```
 
-**Пример с формой:**
-
-```javascript
-const form = document.getElementById("login-form");
-
-form.addEventListener("submit", function (event) {
-  event.preventDefault();
-  console.log("Форма отправлена, но страница не перезагрузилась");
-});
-```
-
-### `event.stopPropagation()` - остановить всплытие (база)
-
-Иногда нужно остановить распространение события вверх по DOM:
-
-```javascript
-const child = document.getElementById("child");
-
-child.addEventListener("click", function (event) {
-  event.stopPropagation();
-  console.log("Клик обработан, но не всплывает дальше");
-});
-```
-
-### Мини-вывод
-
-- `event.type` - тип события
-- `event.target` - где событие произошло
-- `event.currentTarget` - где стоит обработчик
-- `event.preventDefault()` - отмена стандартного поведения
-- `event.stopPropagation()` - остановка всплытия
-
----
-
-## Делегирование событий
-
-`Делегирование событий` - это техника, которая позволяет обрабатывать события на родительском элементе вместо того, чтобы назначать обработчики на каждый дочерний элемент.
-
-В реальных проектах элементы часто:
-- добавляются динамически
-- удаляются
-- изменяются
-- появляются после фильтрации или поиска
-- отображаются списками
-
-Если на каждый элемент вешать обработчик вручную, код усложняется и легче допустить ошибки.
-
-Делегирование решает проблему проще:
-- назначаем один обработчик на родительский элемент
-- внутри обработчика используем `event.target`, чтобы определить, где произошло событие, и реагируем на это
-
-### Почему делегирование работает: всплытие событий
-
-Делегирование работает благодаря механизму `всплытия событий`.  
-Событие “поднимается” от дочернего элемента к его родителям.
-
-Пример структуры:
+Для ссылок используйте:
 
 ```html
-<div id="products">
-  <div class="product">
-    <button data-action="cart">Add</button>
-  </div>
-</div>
+<a href="/" data-link>Home</a>
+<a href="/about" data-link>About</a>
+<a href="/contacts" data-link>Contacts</a>
 ```
 
-Схема всплытия клика:
+Важно: если пользователь обновит страницу на адресе вроде `/about`, сервер тоже должен уметь отдавать ваш `index.html` для этого пути. Без server fallback вы получите серверный 404.
 
-```text
-document
-  |
-  div#products (обработчик)
-    |
-    div.product
-      |
-      button[data-action] (клик)
+### Таймеры: setTimeout и setInterval
+
+Таймеры - это функции, которые позволяют выполнять код с задержкой или периодически. Они тоже являются частью `BOM`, так как управляют временем в браузере.
+
+Смысл таймеров простой:
+- `setTimeout` - выполняет функцию один раз после заданной задержки
+- `setInterval` - выполняет функцию периодически с заданным интервалом
+
+#### setTimeout
+```javascript
+setTimeout(callback, delay);
 ```
 
-### Как использовать делегирование на практике
+`setTimeout` принимает два аргумента:
+- функцию, которую нужно выполнить
+- задержку в миллисекундах
 
-У каждой карточки товара есть две кнопки:
-- добавить в избранное
-- добавить в корзину
-
-```html
-<div id="products">
-  <div class="product" data-id="1">
-    <h3 class="title">Milk</h3>
-    <button class="btn" data-action="favorite">☆ Favorite</button>
-    <button class="btn" data-action="cart">🛒 Add to cart</button>
-  </div>
-
-  <div class="product" data-id="2">
-    <h3 class="title">Bread</h3>
-    <button class="btn" data-action="favorite">☆ Favorite</button>
-    <button class="btn" data-action="cart">🛒 Add to cart</button>
-  </div>
-
-  <div class="product" data-id="3">
-    <h3 class="title">Eggs</h3>
-    <button class="btn" data-action="favorite">☆ Favorite</button>
-    <button class="btn" data-action="cart">🛒 Add to cart</button>
-  </div>
-</div>
+Пример использования `setTimeout`:
+```javascript
+setTimeout(function () {
+  console.log("Привет через 2 секунды!");
+}, 2000);
 ```
 
-Один обработчик на контейнер:
+Можно также передавать ссылку на функцию:
+```javascript
+function sayHello() {
+  console.log("Привет через 2 секунды!");
+}
+setTimeout(sayHello, 2000);
+```
+
+**Важный момент: setTimeout возвращает id**
+
+Когда вы вызываете `setTimeout`, он возвращает идентификатор таймера.
 
 ```javascript
-const products = document.getElementById("products");
+const timerId = setTimeout(() => {
+  console.log("Это сообщение может не появиться");
+}, 3000);
 
-products.addEventListener("click", function (event) {
-  const button = event.target.closest("button[data-action]");
-  if (!button) return;
+console.log(timerId);
+```
 
-  const action = button.dataset.action; // "favorite" или "cart"
-  const product = button.closest(".product");
-  const productId = product.dataset.id;
+Этот id можно использовать для отмены таймера с помощью `clearTimeout`.
 
-  if (action === "favorite") {
-    product.classList.toggle("is-favorite");
-    console.log("toggle favorite:", productId);
+**clearTimeout - отменить setTimeout**
+```javascript
+const timerId = setTimeout(() => {
+  console.log("Не выполнится");
+}, 3000);
+
+clearTimeout(timerId);
+```
+
+Если `clearTimeout` вызывается до того, как таймер сработает, то функция не будет выполнена.
+
+**Практический пример: авто-сообщение на 3 секунды**
+
+Допустим, у нас есть блок:
+```html
+<p id="notice"></p>
+```
+
+```javascript
+const notice = document.getElementById("notice");
+notice.textContent = "Это сообщение исчезнет через 3 секунды";
+setTimeout(() => {
+  notice.textContent = "";
+}, 3000);
+```
+
+#### setInterval
+
+`setInterval` - это функция, которая выполняет код периодически с заданным интервалом.
+
+```javascript
+setInterval(callback, delay);
+```
+
+Пример: выводим в консоль сообщение каждую 1 секунду:
+```javascript
+setInterval(() => {
+  console.log("тик");
+}, 1000);
+```
+
+**setInterval тоже возвращает id**
+
+Так же, как и `setTimeout`, `setInterval` возвращает идентификатор, который можно использовать для отмены с помощью `clearInterval`.
+
+```javascript
+const intervalId = setInterval(() => {
+  console.log("тик");
+}, 1000);
+
+console.log(intervalId);
+```
+
+**clearInterval - отменить setInterval**
+```javascript
+const intervalId = setInterval(() => {
+  console.log("тик");
+}, 1000);
+
+setTimeout(() => {
+  clearInterval(intervalId);
+  console.log("остановлено");
+}, 5000);
+```
+Здесь интервал будет работать 5 секунд, потом остановится.
+
+**Практический пример: таймер обратного отсчёта**
+
+```html
+<p id="timer"></p>
+```
+
+```javascript
+const timerEl = document.getElementById("timer");
+
+let seconds = 10;
+
+timerEl.textContent = seconds;
+
+const intervalId = setInterval(() => {
+  seconds -= 1;
+  timerEl.textContent = seconds;
+
+  if (seconds === 0) {
+    clearInterval(intervalId);
+    timerEl.textContent = "Готово";
   }
+}, 1000);
+```
 
-  if (action === "cart") {
-    console.log("add to cart:", productId);
+В этом примере мы создаём таймер обратного отсчёта от 10 до 0. Каждую секунду значение уменьшается на 1, и когда достигает 0, интервал останавливается и выводится сообщение *"Готово"*.
+
+
+**Важная особенность таймеров**
+
+Таймеры не гарантируют идеальную точность.
+
+Если вкладка перегружена, или если есть другие задачи, которые занимают много времени, то выполнение функции может задержаться. Поэтому `setTimeout` и `setInterval` - это не инструменты для точного измерения времени, а скорее для создания задержек и периодических действий в интерфейсе.
+
+Мини-правило:
+- для простых UI задач таймеров достаточно
+- для точного времени лучше опираться на реальное время (`Date.now()`), но это уже другой уровень
+
+**Пример с `Date.now()`**
+
+```javascript
+const start = Date.now();
+const intervalId = setInterval(() => {
+  const elapsed = Date.now() - start;
+  console.log(`Прошло ${Math.round(elapsed / 1000)} секунд`);
+
+  if (elapsed >= 10000) { // 10 секунд
+    clearInterval(intervalId);
+    console.log("Готово");
   }
+}, 1000);
+```
+
+В этом примере мы используем `Date.now()` для отслеживания реального времени, а не полагаемся на точность `setInterval`. Даже если интервал будет работать с задержкой, мы всё равно будем знать, сколько времени прошло.
+
+### Storage: localStorage и sessionStorage
+
+![](./images/localstorage.png)
+
+`Storage` - это механизм для хранения данных в браузере. Он позволяет сохранять данные в виде пар ключ-значение, которые остаются доступными даже после перезагрузки страницы. 
+Есть два основных типа хранилищ:
+- `localStorage` - данные сохраняются навсегда, пока пользователь не удалит их вручную
+- `sessionStorage` - данные сохраняются только в рамках одной сессии, то есть до закрытия вкладки браузера.
+
+Примеры использования: 
+- пользователь включил тёмную тему → обновил страницу → тема должна остаться
+- пользователь выбрал язык → перезагрузил страницу → язык не должен сброситься
+- пользователь уже вводил данные → случайно обновил страницу → хочется восстановить (хотя бы частично) к примеру форму.
+
+#### localStorage vs sessionStorage: точная разница
+
+- `localStorage` живёт долго: до ручной очистки пользователем, очистки браузера или кода (`removeItem/clear`).
+- `sessionStorage` живёт в рамках конкретной вкладки (tab session) и очищается при её закрытии.
+- Обе сущности переживают перезагрузку страницы (`F5`) в текущей вкладке.
+- `localStorage` общий для вкладок одного origin.
+- `sessionStorage` изолирован по вкладкам: другая вкладка того же сайта получает своё отдельное хранилище.
+- В приватном режиме данные обычно удаляются после закрытия приватного окна (точное поведение зависит от браузера).
+
+#### Как работает Storage?
+
+`localStorage` и `sessionStorage` - это объекты, которые предоставляют методы для работы с данными. Они позволяют сохранять данные в виде строк, и эти данные доступны только для того же `origin` (протокол + домен + порт).
+
+**Важно: данные в `localStorage` и `sessionStorage` сохраняются в виде строк. Если вы хотите сохранить объект, массив или другое значение, вам нужно сначала преобразовать его в строку с помощью `JSON.stringify()`, а при получении данных - обратно в объект с помощью `JSON.parse()`.**
+
+
+#### Основные методы Storage
+
+У обоих хранилищ есть одинаковые методы для работы с данными:
+- `setItem(key, value)` - сохраняет пару ключ-значение
+- `getItem(key)` - получает значение по ключу
+- `removeItem(key)` - удаляет пару по ключу
+- `clear()` - удаляет все данные из хранилища
+- `key(index)` - возвращает ключ по индексу
+- `length` - возвращает количество пар ключ-значение в хранилище
+
+**setItem(key, value) - сохранить данные**
+
+```javascript
+localStorage.setItem("theme", "dark");
+sessionStorage.setItem("language", "en");
+```
+
+**getItem(key) - получить данные**
+
+```javascript
+const theme = localStorage.getItem("theme");
+const language = sessionStorage.getItem("language");
+console.log(theme); // "dark"
+console.log(language); // "en"
+```
+
+Тут главное помнить, какие ключи вы используете, чтобы не запутаться.
+Если ключа нет, `getItem` вернёт `null`.
+
+```javascript
+const nonExistent = localStorage.getItem("nonExistentKey");
+console.log(nonExistent); // null
+```
+**removeItem(key) - удалить данные**
+
+```javascript
+localStorage.removeItem("theme");
+const theme = localStorage.getItem("theme");
+console.log(theme); // null
+```
+
+**clear() - очистить все данные**
+
+```javascript
+localStorage.clear();
+const theme = localStorage.getItem("theme");
+console.log(theme); // null
+```
+
+> Тут нужно быть осторожным, так как `clear()` удаляет все данные, и это может повлиять на другие части вашего приложения, которые тоже используют `localStorage` или `sessionStorage`.
+
+**key(index) - получить ключ по индексу**
+
+```javascript
+localStorage.setItem("theme", "dark");
+localStorage.setItem("language", "en");
+console.log(localStorage.key(0)); // "theme"
+console.log(localStorage.key(1)); // "language"
+```
+
+Такой способ доступа к ключам может быть полезен, если вы хотите перебрать все данные в хранилище. Например, можно использовать цикл для получения всех ключей и значений:
+
+```javascript
+for (let index = 0; index < localStorage.length; index += 1) {
+  const key = localStorage.key(index);
+  if (!key) continue;
+  const value = localStorage.getItem(key);
+  console.log(`${key}: ${value}`);
+}
+```
+
+**length - количество пар ключ-значение**
+
+```javascript
+localStorage.setItem("theme", "dark");
+localStorage.setItem("language", "en");
+console.log(localStorage.length); // 2
+```
+
+#### Событие `storage`: синхронизация между вкладками
+
+Когда данные в `localStorage` меняются в одной вкладке, другие вкладки того же origin получают событие `storage`.
+
+```javascript
+window.addEventListener("storage", (event) => {
+  console.log("key:", event.key);
+  console.log("old:", event.oldValue);
+  console.log("new:", event.newValue);
 });
 ```
 
-Тут важно:
-- обработчик висит на `#products`, а не на каждой кнопке
-- кнопку ищем через `closest("button[data-action]")`
-- `data-action` говорит, что именно нажали
-- `data-id` говорит, какой товар нажали
+Практический сценарий: в первой вкладке пользователь переключил тему, а во второй вкладке вы сразу применили ту же тему.
 
-### Про `closest()`
+Важно:
+- `storage` срабатывает в других вкладках, но не в той, где вы сделали `setItem`.
+- чаще всего для синхронизации используют именно `localStorage`, а не `sessionStorage`.
 
-`closest()` поднимается вверх по DOM и ищет ближайшего родителя (или сам элемент), который подходит под селектор.
+#### Решение проблемы с типами данных
 
-Мы используем `closest()` по двум причинам:
-1) клик может быть по вложенному элементу внутри кнопки
-2) нужно быстро найти “контекст” - карточку товара `.product`
+Как уже говорилось, `localStorage` и `sessionStorage` сохраняют данные в виде строк. Поэтому, если вы хотите сохранить объект, массив или другое значение, вам нужно сначала преобразовать его в строку с помощью `JSON.stringify()`, а при получении данных - обратно в объект с помощью `JSON.parse()`.
 
-### Мини-вывод
-
-- делегирование позволяет назначить один обработчик на родителя и обрабатывать события от всех дочерних элементов
-- это работает благодаря всплытию
-- в делегировании часто используют `event.target` + `closest()`
-
----
-
-## Формы: чтение данных
-
-![](./images/form-navigation.svg)
-
-Форма - это главный способ получить данные от пользователя.  
-Регистрация, логин, поиск, фильтры, оформление заказа - всё это формы.
-
-Чтобы работать с формой в JavaScript, нужно уметь:
-- получить доступ к форме и полям
-- прочитать значения полей
-- понимать разницу между `input`, `checkbox`, `radio`, `select`, `textarea`
-
-### Главная идея
-
-Форма - это DOM-элемент.  
-А её поля - DOM-элементы внутри формы.
-
----
-
-### 1) Как найти форму
-
-```html
-<form id="login-form">
-  <input type="email" name="email" placeholder="Email" />
-  <input type="password" name="password" placeholder="Password" />
-  <button type="submit">Login</button>
-</form>
+Простой пример:
+```javascript
+localStorage.setItem("age", 25);
+console.log(localStorage.getItem("age")); // "25"
 ```
+В данном случае число `25` сохраняется как строка `"25"`. Если вы хотите сохранить число, то нужно использовать `JSON.stringify()`:
 
 ```javascript
-const form = document.getElementById("login-form");
-console.log(form);
+localStorage.setItem("age", JSON.stringify(25));
+console.log(JSON.parse(localStorage.getItem("age"))); // 25
 ```
 
----
-
-### 2) `form.elements` - доступ ко всем полям формы
-
-`form.elements` содержит все поля управления формы.
-
+Пример с объектом:
 ```javascript
-console.log(form.elements);
+const user = {
+  name: "Alice",
+  age: 30,
+};
+
+localStorage.setItem("user", JSON.stringify(user));
+const storedUser = JSON.parse(localStorage.getItem("user"));
+console.log(storedUser); // { name: "Alice", age: 30 }
 ```
 
-#### Доступ к полю по `name`
+#### Безопасность: что нельзя хранить в `localStorage`
 
-```javascript
-const emailInput = form.elements.email;
-const passwordInput = form.elements.password;
+В `localStorage` не стоит хранить чувствительные данные:
+- пароли;
+- refresh/access токены аутентификации;
+- секретные персональные данные.
 
-console.log(emailInput.value);
-console.log(passwordInput.value);
-```
+Причина: любой JavaScript на странице может прочитать `localStorage`. Если в проекте появится XSS-уязвимость, злоумышленник сможет получить эти значения.
 
----
+`localStorage` хорошо подходит для несекретных настроек интерфейса: тема, язык, вид сетки, последние фильтры.
 
-### 3) `input` и `textarea`: читаем через `value`
+#### Практический пример: сохранение темы сайта
 
-```html
-<input type="text" name="username" />
-<textarea name="about"></textarea>
-```
-
-```javascript
-const username = form.elements.username.value;
-const about = form.elements.about.value;
-
-console.log(username, about);
-```
-
----
-
-### 4) `checkbox`: читаем через `checked`
+Допустим у нас на сайте есть checkbox для переключения темы:
 
 ```html
 <label>
-  <input type="checkbox" name="agree" />
-  I agree
+  <input type="checkbox" id="theme-toggle"> Тёмная тема
 </label>
-```
+``` 
+
+Когда пользователь переключает тему, мы сохраняем его выбор в `localStorage`, чтобы при следующем посещении сайта тема сохранялась.
 
 ```javascript
-const agree = form.elements.agree.checked;
-console.log(agree); // true/false
+const toggle = document.getElementById("theme-toggle");
+
+toggle.addEventListener("change", function () {
+  if (this.checked) {
+    document.body.classList.add("dark-theme");
+    localStorage.setItem("theme", "dark");
+  } else {
+    document.body.classList.remove("dark-theme");
+    localStorage.setItem("theme", "light");
+  }
+});
 ```
 
----
+> this.checked - это свойство, которое возвращает `true`, если checkbox отмечен, и `false`, если нет.
 
-### 5) `radio`: читаем выбранную
+А при загрузке страницы мы проверяем сохранённую тему и применяем её:
+
+```javascript
+function applySavedTheme() {
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme === "dark") {
+    document.body.classList.add("dark-theme");
+    toggle.checked = true;
+  }
+}
+applySavedTheme();
+```
+
+В этом примере мы сохраняем выбор пользователя в `localStorage`, и при следующем посещении сайта тема будет автоматически применяться. Это улучшает пользовательский опыт, так как не нужно каждый раз настраивать тему заново.
+
+## Мини проект: сохранение и переключение темы и языка на сайте
+
+В этом мини проекте мы создадим простую страницу с возможностью переключения темы (светлая/тёмная) и языка (русский/английский). Мы будем использовать `localStorage` для сохранения этих настроек, чтобы при следующем посещении сайта пользователь видел свои предпочтения.
+
+Минимальный HTML для нашего проекта может выглядеть так:
 
 ```html
-<label><input type="radio" name="delivery" value="pickup" /> Pickup</label>
-<label><input type="radio" name="delivery" value="courier" /> Courier</label>
-```
-
-```javascript
-const selected = form.querySelector('input[name="delivery"]:checked');
-console.log(selected?.value); // "pickup" или "courier"
-```
-
----
-
-### 6) `select`: читаем через `value`
-
-```html
-<select name="city">
-  <option value="prague">Prague</option>
-  <option value="brno">Brno</option>
-  <option value="ostrava">Ostrava</option>
-</select>
-```
-
-```javascript
-const city = form.elements.city.value;
-console.log(city);
-```
-
----
-
-### 7) Чтение данных формы: вручную vs `FormData`
-
-#### Вручную (когда важны типы и логика)
-
-```javascript
-const data = {
-  email: form.elements.email.value.trim(),
-  password: form.elements.password.value,
-  agree: form.elements.agree.checked,
-};
-
-console.log(data);
-```
-
-#### `FormData` (собрать всё разом)
-
-```javascript
-const data = Object.fromEntries(new FormData(form).entries());
-console.log(data);
-```
-
-**Важно:** `FormData` работает “как форма”:
-- неотмеченный checkbox может не попасть в данные
-- отмеченный checkbox обычно приходит как `"on"` или как заданный `value`
-
----
-
-### Мини-правила
-
-- текстовые поля читаем через `value`
-- чекбоксы читаем через `checked`
-- radio читаем через `:checked`
-- `select` читаем через `value`
-- если нужно собрать всё разом - `FormData`
-- если нужны типы и логика - читаем вручную
-
----
-
-## Формы: отправка (`submit`)
-
-Главное действие формы - отправка.
-
-Когда пользователь нажимает кнопку `type="submit"` или жмёт `Enter`, браузер генерирует событие `submit`.
-
-### Что делает браузер по умолчанию
-
-По умолчанию браузер:
-1. собирает данные
-2. отправляет форму на URL из `action`
-3. перезагружает страницу
-
-В этой лекции мы будем **перехватывать отправку** и управлять ей самостоятельно.
-
-### Событие `submit`
-
-```javascript
-form.addEventListener("submit", function (event) {
-  console.log("form submitted");
-});
-```
-
-Но страница всё равно перезагрузится, если не отменить поведение браузера.
-
-### `event.preventDefault()` при `submit`
-
-```javascript
-form.addEventListener("submit", function (event) {
-  event.preventDefault();
-  console.log("page not reloaded");
-});
-```
-
-### Чтение данных формы при `submit`
-
-```javascript
-form.addEventListener("submit", function (event) {
-  event.preventDefault();
-
-  const email = form.elements.email.value.trim();
-  const password = form.elements.password.value;
-
-  console.log({ email, password });
-});
-```
-
----
-
-## Валидация и `preventDefault()` (практика)
-
-Валидация - это проверка данных формы перед обработкой.
-
-### Разметка: поля + места под ошибки
-
-```html
-<form id="login-form" novalidate>
-  <div class="field">
-    <label>Email</label>
-    <input type="email" name="email" />
-    <small class="error" data-error-for="email"></small>
-  </div>
-
-  <div class="field">
-    <label>Password</label>
-    <input type="password" name="password" />
-    <small class="error" data-error-for="password"></small>
-  </div>
-
-  <div class="field">
-    <label>
-      <input type="checkbox" name="agree" />
-      I agree
-    </label>
-    <small class="error" data-error-for="agree"></small>
-  </div>
-
-  <button type="submit">Send</button>
-</form>
-```
-
-`novalidate` отключает встроенную браузерную валидацию, чтобы мы управляли всем сами.
-
-### Инструменты: показать ошибку и очистить ошибки
-
-```javascript
-function setError(fieldName, message) {
-  const errorEl = form.querySelector(`[data-error-for="${fieldName}"]`);
-  if (errorEl) errorEl.textContent = message;
-}
-
-function clearErrors() {
-  form.querySelectorAll(".error").forEach((el) => (el.textContent = ""));
-}
-```
-
-### Функция валидации
-
-```javascript
-function validateForm() {
-  const errors = {};
-
-  const email = form.elements.email.value.trim();
-  const password = form.elements.password.value;
-  const agree = form.elements.agree.checked;
-
-  if (!email) {
-    errors.email = "Email is required";
-  } else if (!email.includes("@")) {
-    errors.email = "Email must contain @";
-  }
-
-  if (!password) {
-    errors.password = "Password is required";
-  } else if (password.length < 6) {
-    errors.password = "Password must be at least 6 characters";
-  }
-
-  if (!agree) {
-    errors.agree = "You must accept the agreement";
-  }
-
-  return errors;
-}
-```
-
-### Валидация на `submit`
-
-```javascript
-form.addEventListener("submit", function (event) {
-  event.preventDefault();
-
-  clearErrors();
-
-  const errors = validateForm();
-
-  if (Object.keys(errors).length > 0) {
-    for (const [field, message] of Object.entries(errors)) {
-      setError(field, message);
-    }
-    return;
-  }
-
-  const data = {
-    email: form.elements.email.value.trim(),
-    password: form.elements.password.value,
-    agree: form.elements.agree.checked,
-  };
-
-  console.log("Form is valid:", data);
-});
-```
-
-### Когда валидировать: `input` vs `submit`
-
-В базовом варианте достаточно валидации на `submit`.  
-Но чтобы улучшить UX, можно очищать ошибку при вводе:
-
-```javascript
-form.addEventListener("input", function (event) {
-  const field = event.target.name;
-  if (!field) return;
-
-  setError(field, "");
-});
-```
-
-И валидировать поле, когда пользователь закончил ввод.
-
-Чтобы не усложнять `blur` и capture, используем `focusout` (он всплывает):
-
-```javascript
-function validateField(fieldName) {
-  const errors = validateForm();
-  return errors[fieldName] ?? "";
-}
-
-form.addEventListener("focusout", function (event) {
-  const field = event.target.name;
-  if (!field) return;
-
-  setError(field, validateField(field));
-});
-```
----
-
-## Заключение
-
-В этой лекции мы узнали, как работать с событиями и формами в JavaScript.
-Теперь вы понимаете, как устроена интерактивность в браузере:
-- события - это способ реагировать на действия пользователя
-- обработчики событий - это функции, которые выполняются при событии
-- делегирование позволяет эффективно обрабатывать события на множестве элементов
-- формы - это способ получить данные от пользователя, и их можно валидировать и обрабатывать с помощью JavaScript.
-
-## Практика
-
-1. Создайте кнопку:
-   ```html
-   <button id="btn">Click</button>
-   ```
-   В JavaScript:
-   - найдите кнопку через `getElementById`;
-   - повесьте обработчик `click`;
-   - при клике выводите в консоль: `Button clicked`.
-
-2. В обработчике клика из задания 1:
-   - выведите в консоль `event.type`;
-   - убедитесь, что в консоли появляется `"click"`.
-
-3. Создайте разметку:
-   ```html
-   <button id="buy-btn">
-     <span class="icon">🛒</span>
-     Buy
-   </button>
-   ```
-   В JavaScript:
-   - повесьте обработчик `click` на кнопку;
-   - выведите в консоль `event.target` и `event.currentTarget`;
-   - проверьте два сценария: клик по `Buy` и клик по иконке `🛒`.
-
-4. Создайте ссылку:
-   ```html
-   <a id="link" href="https://google.com">Go</a>
-   ```
-   В JavaScript:
-   - повесьте обработчик `click`;
-   - отмените переход через `event.preventDefault()`;
-   - выведите в консоль: `Link prevented`.
-
-5. Создайте каталог товаров:
-   ```html
-   <div id="products">
-     <div class="product" data-id="1">
-       <h3>Milk</h3>
-       <button data-action="favorite">Favorite</button>
-       <button data-action="cart">Add</button>
-     </div>
-
-     <div class="product" data-id="2">
-       <h3>Bread</h3>
-       <button data-action="favorite">Favorite</button>
-       <button data-action="cart">Add</button>
-     </div>
-   </div>
-   ```
-   Реализуйте делегирование:
-   - повесьте один обработчик `click` на `#products`;
-   - внутри обработчика найдите кнопку через `event.target.closest("button[data-action]")`;
-   - если кнопки нет - завершайте обработчик (`return`);
-   - получите:
-     - `action` из `button.dataset.action`;
-     - `productId` из `data-id` карточки товара;
-   - выведите в консоль: `action: <action>, id: <productId>`.
-
-6. В продолжение задания 5:
-   - найдите карточку товара через `button.closest(".product")`;
-   - выведите в консоль заголовок товара (`h3.textContent`).
-
-7. Создайте форму:
-   ```html
-   <form id="login-form">
-     <input type="email" name="email" placeholder="Email" />
-     <input type="password" name="password" placeholder="Password" />
-     <label>
-       <input type="checkbox" name="agree" />
-       I agree
-     </label>
-     <button type="submit">Send</button>
-   </form>
-   ```
-   В JavaScript:
-   - найдите форму;
-   - прочитайте значения:
-     - `email` через `value`;
-     - `password` через `value`;
-     - `agree` через `checked`;
-   - выведите в консоль объект: `{ email, password, agree }`.
-
-8. Для формы из задания 7:
-   - повесьте обработчик `submit` на форму;
-   - сделайте `event.preventDefault()`;
-   - выведите в консоль: `Form submitted`;
-   - выведите в консоль объект данных формы: `{ email, password, agree }`.
-
-9. Добавьте в обработчик `submit` валидацию:
-   - `email` не пустой;
-   - `password` не пустой;
-   - `password.length >= 6`;
-   - `agree === true`.
-
-   Если проверка не проходит:
-   - выводите в консоль `Validation error`;
-   - завершайте обработчик (`return`).
-
-   Если всё ок:
-   - выводите в консоль `Form is valid`.
-
-10. Обновите HTML формы и добавьте блоки ошибок:
-    ```html
-    <form id="login-form" novalidate>
-      <div class="field">
-        <input type="email" name="email" placeholder="Email" />
-        <small class="error" data-error-for="email"></small>
-      </div>
-
-      <div class="field">
-        <input type="password" name="password" placeholder="Password" />
-        <small class="error" data-error-for="password"></small>
-      </div>
-
-      <div class="field">
-        <label>
-          <input type="checkbox" name="agree" />
-          I agree
-        </label>
-        <small class="error" data-error-for="agree"></small>
-      </div>
-
-      <button type="submit">Send</button>
-    </form>
-    ```
-    В JavaScript:
-    - реализуйте `setError(fieldName, message)` - вывод ошибки рядом с полем;
-    - реализуйте `clearErrors()` - очистка всех ошибок;
-    - при `submit`:
-      - очищайте ошибки;
-      - валидируйте данные;
-      - показывайте ошибки рядом с полями.
-
-11. Добавьте очистку ошибок на `input`:
-    - повесьте обработчик `input` на форму;
-    - берите имя поля через `event.target.name`;
-    - когда пользователь вводит данные - очищайте ошибку только для этого поля.
-
-12. Добавьте валидацию поля на `focusout`:
-    - повесьте обработчик `focusout` на форму;
-    - определяйте поле через `event.target.name`;
-    - валидируйте только это поле и показывайте ошибку рядом с ним.
-
-## Домашнее задание
-
-Сделайте мини-страницу **"Каталог + форма заказа"**, чтобы закрепить:
-
-- `addEventListener`
-- объект события `event`
-- `preventDefault()`
-- делегирование событий
-- чтение данных формы
-- `submit`
-- валидацию формы
-
----
-
-### 1. Блок каталога товаров (делегирование)
-
-Создайте разметку контейнера `#products` с минимум **4 карточками товаров**.
-
-Требования к карточке:
-
-- класс `.product`
-- атрибут `data-id`
-- заголовок (`h3`)
-- кнопка `Favorite` (`data-action="favorite"`)
-- кнопка `Add to cart` (`data-action="cart"`)
-
-Пример структуры одной карточки:
-
-```html
-<div class="product" data-id="1">
-  <h3>Milk</h3>
-  <button class="btn" data-action="favorite">Favorite</button>
-  <button class="btn" data-action="cart">Add to cart</button>
+<div class="settings">
+  <h2>Settings</h2>
+
+  <label>
+    <input type="checkbox" id="theme-toggle">
+    Dark mode
+  </label>
+
+  <label>
+    Language:
+    <select id="lang-select">
+      <option value="en">EN</option>
+      <option value="ru">RU</option>
+    </select>
+  </label>
+
+  <hr>
+
+  <h1 data-i18n="title"></h1>
+  <p data-i18n="subtitle"></p>
+  <button data-i18n="buy"></button>
 </div>
 ```
 
-Реализуйте:
+Здесь важно:
+- `theme-toggle` - это checkbox для переключения темы
+- `lang-select` - это select для выбора языка
+- `data-i18n` - это атрибут, который мы будем использовать для перевода текста на странице в зависимости от выбранного языка
 
-1. Один обработчик `click` на контейнер `#products`.
-2. Поиск кнопки через `event.target.closest("button[data-action]")`.
-3. Если клик не по нужной кнопке -> `return`.
-4. Получение:
-   - `action` из `button.dataset.action`
-   - `productId` из `closest(".product").dataset.id`
-   - `title` из `h3.textContent`
-5. Логику:
-   - `favorite` -> переключать класс `.is-favorite` у карточки
-   - `cart` -> увеличивать счётчик корзины на странице
-6. Вывод в консоль строки вида:
-   - `action: cart, id: 1, title: Milk`
+**Минимальный CSS для темы:**
 
----
+```css
+.dark-theme {
+  background: #111;
+  color: #fff;
+}
 
-### 2. Счётчик и базовые события
-
-Добавьте на страницу:
-
-- кнопку `#clear-cart`
-- ссылку `#catalog-link` (любая ссылка)
-- элемент счётчика корзины (`#cart-count`)
-
-Реализуйте:
-
-1. Клик по `#clear-cart` обнуляет счётчик корзины.
-2. Клик по `#catalog-link`:
-   - отменяет переход через `event.preventDefault()`
-   - пишет в консоль `Link prevented`
-3. В обработчиках выведите и сравните:
-   - `event.target`
-   - `event.currentTarget`
-
----
-
-### 3. Форма заказа / заявки
-
-Создайте форму `#order-form` с `novalidate`.
-
-Минимальные поля:
-
-- `email` (`type="email"`)
-- `name` (`type="text"`)
-- `delivery` (`radio`: `pickup` / `courier`)
-- `payment` (`select`)
-- `comment` (`textarea`)
-- `agree` (`checkbox`)
-- кнопка `submit`
-
-Для полей `email`, `name`, `agree` добавьте блоки ошибок:
-
-```html
-<small class="error" data-error-for="email"></small>
+.dark-theme button {
+  background: #fff;
+  color: #111;
+}
 ```
 
+**JS: словарь переводов**
+
+```javascript
+const translations = {
+  en: {
+    title: "Welcome to our shop",
+    subtitle: "Choose products and enjoy shopping",
+    buy: "Buy now",
+  },
+  ru: {
+    title: "Добро пожаловать в магазин",
+    subtitle: "Выбирайте товары и покупайте",
+    buy: "Купить",
+  },
+};
+```
+
+Функция для применения перевода на страницу:
+
+```javascript
+function applyLanguage(lang) {
+  const elements = document.querySelectorAll("[data-i18n]");
+
+  elements.forEach((el) => {
+    const key = el.dataset.i18n;
+    el.textContent = translations[lang][key];
+  });
+}
+```
+
+Функция находит все элементы с атрибутом `data-i18n`, получает ключ из этого атрибута и устанавливает текст элемента в соответствии с выбранным языком.
+
+**Восстановление настроек при загрузке страницы**
+
+Основная идея в том, что при загрузке страницы мы проверяем `localStorage` на наличие сохранённых настроек и применяем их :
+- читаем `theme` и `lang` из `localStorage`
+- если `theme` - это `dark`, то добавляем класс `dark-theme` к `body` и устанавливаем `theme-toggle` в `checked`
+- если `lang` - это `en` или `ru`, то вызываем `applyLanguage` с этим языком и устанавливаем `lang-select` в соответствующее значение
+
+```javascript
+const themeToggle = document.getElementById("theme-toggle");
+const langSelect = document.getElementById("lang-select");
+
+// Тема
+const savedTheme = localStorage.getItem("theme");
+if (savedTheme === "dark") {
+  document.body.classList.add("dark-theme");
+  themeToggle.checked = true;
+}
+
+// Язык
+const savedLang = localStorage.getItem("lang") || "en";
+langSelect.value = savedLang;
+applyLanguage(savedLang);
+```
+
+**Сохраняем тему при изменении**
+
+```javascript
+themeToggle.addEventListener("change", function () {
+  if (this.checked) {
+    document.body.classList.add("dark-theme");
+    localStorage.setItem("theme", "dark");
+  } else {
+    document.body.classList.remove("dark-theme");
+    localStorage.setItem("theme", "light");
+  }
+});
+```
+
+**Сохраняем язык при изменении**
+
+```javascript
+langSelect.addEventListener("change", function () {
+  const lang = this.value;
+  localStorage.setItem("lang", lang);
+  applyLanguage(lang);
+});
+```
+
+**Синхронизация темы и языка между вкладками**
+
+```javascript
+window.addEventListener("storage", function (event) {
+  if (event.key === "theme") {
+    const isDark = event.newValue === "dark";
+    document.body.classList.toggle("dark-theme", isDark);
+    themeToggle.checked = isDark;
+  }
+
+  if (event.key === "lang" && event.newValue) {
+    langSelect.value = event.newValue;
+    applyLanguage(event.newValue);
+  }
+});
+```
+
+**Итог**
+
+В этом мини проекте мы создали простую страницу с возможностью переключения темы и языка. Мы использовали `localStorage` для сохранения этих настроек, чтобы при следующем посещении сайта пользователь видел свои предпочтения. Это улучшает пользовательский опыт и делает сайт более персонализированным.
+
+На самом деле, это базовый пример, который можно расширять и улучшать. Например, можно добавить больше языков, более сложные темы, или даже использовать `sessionStorage` для временных настроек. Но главное - понять, как работает `BOM` и `Storage`, и как они могут помочь нам создавать более удобные и функциональные веб-приложения.
+
+### Типичные ошибки и как их избежать
+
+1. Запуск нескольких `setInterval` одновременно.  
+   Решение: храните `intervalId` и не запускайте новый интервал, пока старый не остановлен.
+2. Забытый `clearTimeout` или `clearInterval`.  
+   Решение: очищайте таймеры при повторном действии пользователя и при размонтировании компонентов.
+3. Использование `localStorage.clear()` без необходимости.  
+   Решение: удаляйте только нужные ключи через `removeItem`.
+4. Несогласованные ключи (`lang` в одном месте и `language` в другом).  
+   Решение: заведите список констант ключей и используйте только их.
+5. Ожидание, что `storage` сработает в той же вкладке.  
+   Решение: текущую вкладку обновляйте сразу после `setItem`, `storage` оставляйте для других вкладок.
+6. Использование `pushState` без обработки `popstate` и серверного fallback.  
+   Решение: рендерите маршрут на `popstate` и настройте сервер на возврат `index.html` для клиентских путей.
+
+
+## Заключение
+
+В этой лекции мы вышли за пределы “страницы” и посмотрели на то, что окружает ваш сайт в браузере.
+
+Если раньше основной инструмент был `DOM` (элементы, классы, события), то теперь добавился **BOM** - всё, что относится к работе браузера вокруг документа.
+
 ---
 
-### 4. Отправка формы (`submit`)
+## Практика
 
-Повесьте обработчик `submit` на форму:
+Цель практики - закрепить BOM и Storage на маленьких заданиях. Делайте по шагам, проверяя результат в консоли и в интерфейсе.
 
-1. Сделайте `event.preventDefault()`.
-2. Считайте данные формы:
-   - через `form.elements` и свойства (`value`, `checked`)
-   - `delivery` (`radio`) прочитайте через `querySelector('input[name="delivery"]:checked')?.value`
-   - `payment`, `comment` прочитайте через `value`
-3. Соберите объект `formValues`.
-4. Выведите объект в консоль.
+1. Выведите в консоль:
+   - `location.href`
+   - `location.pathname`
+   - `location.search`
+   - `location.hash`
 
-Дополнительно (обязательно): покажите второй способ чтения данных через `FormData` и выведите результат в консоль.
+2. Откройте любую страницу с query-параметром, например:  
+   `...?page=2&sort=price`  
+   И в JS:
+   - создайте `URLSearchParams(location.search)`
+   - выведите `page` и `sort` через `params.get()`
+
+3. Сделайте правило “значение по умолчанию”:
+   - если `page` отсутствует, считать что `page = 1`
+
+4. Создайте кнопку:
+   ```html
+   <button id="reload">Reload</button>
+   ```
+   В JS:
+   - по клику делайте `location.reload()`
+
+5. Создайте кнопку:
+   ```html
+   <button id="back">Back</button>
+   ```
+   В JS:
+   - по клику делайте `history.back()`
+
+6. Создайте кнопку:
+   ```html
+   <button id="forward">Forward</button>
+   ```
+   В JS:
+   - по клику делайте `history.forward()`
+
+7. `setTimeout`: создайте блок:
+   ```html
+   <p id="notice"></p>
+   ```
+   В JS:
+   - по клику на кнопку показывайте текст `Saved`
+   - через `setTimeout` очищайте текст через 3 секунды
+
+8. `setTimeout + clearTimeout`: сделайте так, чтобы новое сообщение “перезапускало” таймер.  
+   Подсказка: храните `timerId` в переменной и вызывайте `clearTimeout(timerId)` перед новым `setTimeout`.
+
+9. `setInterval`: сделайте секундомер:
+   - блок `<p id="timer"></p>`
+   - кнопка Start запускает интервал (1 сек)
+   - кнопка Stop останавливает интервал
+
+10. Сделайте так, чтобы нельзя было запустить несколько интервалов сразу:
+   - если интервал уже запущен - повторный Start ничего не делает
+
+11. `localStorage`: сохраните значение:
+   - `localStorage.setItem("theme", "dark")`
+   - прочитайте через `getItem` и выведите в консоль
+
+12. Проверьте, что данные в `localStorage` не пропадают после перезагрузки страницы.
+
+### Дополнительные задания
+
+13. `sessionStorage`: сохраните значение:
+   - `sessionStorage.setItem("step", "2")`
+   - прочитайте и выведите в консоль
+   - закройте вкладку и откройте снова - проверьте, что значение исчезло
+
+14. Сохранение объекта:
+   - создайте объект `settings = { theme: "dark", lang: "ru" }`
+   - сохраните в localStorage через `JSON.stringify`
+   - прочитайте обратно и восстановите объект через `JSON.parse`
+
+15. `navigator`: выведите в консоль:
+   - `navigator.language`
+   - `navigator.onLine`
+   - `navigator.maxTouchPoints`
+
+16. `storage` event:
+   - откройте страницу в двух вкладках
+   - во вкладке A меняйте `localStorage.setItem("theme", "...")`
+   - во вкладке B слушайте событие `storage` и выводите `event.key` и `event.newValue`
+
+17. Мини-роутер:
+   - сделайте 3 ссылки (`/`, `/about`, `/contacts`) с `data-link`
+   - реализуйте рендер по `location.pathname`
+   - при клике обновляйте URL через `history.pushState`
+   - обрабатывайте кнопку Назад/Вперёд через `popstate`
 
 ---
 
-### 5. Валидация формы
+## Домашняя работа
 
-Реализуйте функции:
+1. Сделайте мини-интерфейс **“Настройки сайта”**:
+   - чекбокс `#theme-toggle` (Dark mode)
+   - select `#lang-select` (EN/RU)
+   - блок текста, который переводится через `data-i18n`:
+     - `h1[data-i18n="title"]`
+     - `p[data-i18n="subtitle"]`
+     - `button[data-i18n="buy"]`
 
-- `setError(fieldName, message)`
-- `clearErrors()`
-- `validateForm(values)` -> возвращает объект ошибок
+2. Реализуйте словарь переводов `translations` минимум для 3 ключей: `title`, `subtitle`, `buy`:
+   - `en` и `ru` обязательны.
 
-Правила валидации:
+3. Реализуйте функцию `applyLanguage(lang)`:
+   - находит все элементы `[data-i18n]`
+   - берёт ключ из `dataset.i18n`
+   - подставляет текст из словаря переводов.
 
-- `email` не пустой
-- `email` содержит `@`
-- `name` не пустое (минимум 2 символа)
-- `agree === true`
+4. Реализуйте переключение темы:
+   - при включении чекбокса добавляется класс `dark-theme` на `body`
+   - при выключении - класс удаляется.
 
-Поведение на `submit`:
+5. Реализуйте сохранение темы в `localStorage`:
+   - ключ `theme`
+   - значения: `dark` или `light`.
 
-1. Очистить старые ошибки.
-2. Провалидировать данные.
-3. Если есть ошибки:
-   - показать ошибки рядом с полями
-   - вывести `Validation error` в консоль
-   - остановить отправку (`return`)
-4. Если ошибок нет:
-   - вывести `Form is valid` в консоль
-   - показать пользователю сообщение об успехе (текст на странице)
+6. Реализуйте сохранение языка в `localStorage`:
+   - ключ `lang`
+   - значения: `en` или `ru`.
 
----
+7. Реализуйте восстановление настроек при загрузке страницы:
+   - если `theme === "dark"` → применить тему и выставить `theme-toggle.checked = true`
+   - если `lang` отсутствует → язык по умолчанию `en`
+   - после восстановления языка вызвать `applyLanguage(lang)`.
 
-### 6. Живая работа с ошибками (`input` и `focusout`)
+8. Добавьте кнопку “Reset settings”:
+   - очищает ключи `theme` и `lang` из `localStorage`
+   - возвращает тему в light и язык в `en`
+   - обновляет интерфейс (класс на body, select, тексты).
 
-Добавьте обработчики на форму:
+9. Добавьте небольшой отчёт в комментарии в конце JS-файла:
+   - какие ключи вы сохраняли в `localStorage` и почему
+   - где использовали `JSON.stringify/JSON.parse` (если использовали)
+   - какой обработчик событий использовали для темы и языка (`change`/`click`) и почему
 
-1. `input`
-   - брать имя поля через `event.target.name`
-   - очищать ошибку только у этого поля
-2. `focusout`
-   - валидировать только поле, с которого ушёл фокус
-   - показывать/обновлять ошибку рядом с ним
+10. Добавьте синхронизацию темы и языка между двумя вкладками:
+   - используйте событие `storage`
+   - при изменении `theme` или `lang` в одной вкладке обновляйте интерфейс во второй.
 
-Подсказка: `focusout` всплывает, поэтому удобно вешать обработчик на форму.
+11. Добавьте простую навигацию без перезагрузки (`pushState + popstate`):
+   - минимум 3 маршрута
+   - рендер содержимого по `location.pathname`
+   - корректная работа кнопок Назад/Вперёд.
 
----
-
-## Требования к решению
-
-- Использовать `addEventListener` (не `onclick` как основной способ).
-- Для каталога использовать **делегирование**, а не обработчик на каждую кнопку.
-- Не перезагружать страницу при отправке формы.
-- Ошибки выводить рядом с полями, а не только в `alert`.
-- Код разбить на небольшие функции (например: `getFormValues`, `validateForm`, `handleProductsClick`, `updateCartCount`).
+12. Добавьте короткий комментарий в конце файла:
+   - какие данные нельзя хранить в `localStorage` и почему
+   - какие данные в вашем проекте безопасно хранить в `localStorage`.

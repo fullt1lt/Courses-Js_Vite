@@ -1,827 +1,971 @@
-# Лекция 12. Модули в JavaScript: import/export, структура проекта, разделение кода
+# Лекция 12. HTTP, fetch и API: запросы, JSON и работа с данными
 
-![](./images/modules.jpg)
+![](./images/API.avif)
 
 ## Введение
 
-В прошлых лекциях мы уже написали достаточно серьёзные вещи: работа с `DOM` и `BOM`, события, формы, асинхронность, `fetch`, `request()`, `UI`-состояния `loading / error / empty / success`. По мере написания кода мы видели, что он становится всё больше и больше, и его становится сложнее поддерживать.
+В прошлой лекции мы разобрали фундамент асинхронности:
 
-Сначала это не проблема. Когда у вас 50-100 строк - всё выглядит нормально. Но как только появляется _“настоящее”_ приложение (пусть и учебное), в одном файле начинают жить разные куски логики:
+- почему браузер не должен блокировать интерфейс;
+- как работают `callback`, `Promise`, `async/await`;
+- что такое `event loop`;
+- как строить последовательные и параллельные шаги;
+- как показывать `loading` и правильно обрабатывать ошибки.
 
-- функции для работы с сетью (`fetch`, `request`, проверка `response.ok`);
-- функции для интерфейса (`setStatus`, `renderPosts`, очистка списка);
-- обработчики событий (кнопка _“Загрузить”_, форма создания поста, удаление по кнопке);
-- вспомогательные функции (`wait`, форматирование и т.д.).
+Теперь пришло время применить этот фундамент к одной из самых важных задач во frontend:
 
-И вот здесь появляется проблема:
+> **получать и отправлять данные по сети**
 
-> **Код начинает смешиваться. Вы открываете файл и видите всё сразу: и сеть, и UI, и обработчики.**
+Почти любое современное приложение делает именно это:
 
-Файл становится трудно читать, трудно поддерживать и легко случайно сломать. Вы добавили одну мелочь - и задели часть кода, которая вообще относится к другой задаче.
+- загружает список товаров;
+- получает профиль пользователя;
+- отправляет форму;
+- обновляет данные;
+- удаляет запись;
+- показывает состояние загрузки или ошибку.
 
-Это не вопрос **«красивого»** кода. Это вопрос **структуры**. Когда код структурирован, он становится более понятным, легче поддерживается и расширяется.
+То есть теперь мы переходим от *“асинхронности вообще”* к очень конкретной прикладной теме:
 
-### Что с этим делать
+- как браузер общается с сервером;
+- что такое `HTTP` и `API`;
+- как использовать `fetch`;
+- как читать `JSON`;
+- как строить UI вокруг сетевых запросов.
 
-Здесь возникает логичный вопрос:
+## Кратко
 
-> **Как правильно разнести код по файлам так, чтобы проект стал понятнее, но при этом всё продолжало работать?**
+Если собрать всю лекцию в несколько опорных мыслей, получится так:
 
-И именно для этого в `JavaScript` существуют модули.
+- браузер не берёт данные “из воздуха” - он отправляет запросы на сервер;
+- сервер отвечает через `HTTP`;
+- `fetch()` возвращает `Promise`, поэтому с ним работают через `then` или `async/await`;
+- объект `Response` - это ещё не сами данные;
+- данные часто приходят в формате `JSON`;
+- `fetch` не падает на `404` или `500` автоматически - это нужно проверять через `response.ok`;
+- хороший frontend показывает пользователю `loading`, `success`, `empty`, `error`.
 
-Модули дают нам возможность:
+## Как браузер общается с сервером
 
-- хранить разные части логики в отдельных файлах;
-- явно указывать, что мы хотим использовать из другого файла;
-- создавать более чистую и понятную структуру проекта.
+Когда вы открываете сайт или нажимаете кнопку “Загрузить”, браузер не *“подсматривает”* данные где-то у себя внутри. Он общается с внешним сервером.
 
-**То есть вместо одного большого `main.js` мы получим набор файлов, связанных через `import/export`.**
+В этой модели есть две стороны:
 
-## Что такое модуль в JavaScript
+- **клиент** - браузер, в котором работает ваш JavaScript;
+- **сервер** - компьютер или сервис, который принимает запросы и возвращает ответы.
 
-Когда мы говорим _“модуль”_, важно не представлять это как что-то отдельное от обычного кода. Модуль - это всё тот же JavaScript, но с одним принципиальным отличием:
+Простейшая схема:
 
-> **модуль - это файл, у которого есть своя область видимости, и который может явно экспортировать и импортировать код.**
-
-То есть модуль - это не просто _“ещё один файл”_. Это файл, который умеет:
-
-- отдавать наружу функции, переменные, классы через `export`;
-- получать нужные вещи из других файлов через `import`.
-
-Почитать про модули можно [здесь](https://doka.guide/js/modules/).
-
-### Чем модули отличаются от обычных скриптов
-
-Когда вы подключаете обычный файл так:
-
-```html
-<script src="main.js"></script>
+```text
+Browser -> request -> Server
+Browser <- response <- Server
 ```
 
-браузер загружает этот скрипт и выполняет его, а переменные и функции (если они объявлены в глобальной области) могут оказаться доступными _“везде”_. На маленьких проектах это выглядит удобно, но на больших быстро приводит к конфликтам: вы случайно переопределили переменную, назвали две функции одинаково, и начинаются странные ошибки.
+### Клиент и сервер
 
-С модулями идея другая: у каждого файла есть своя область видимости, и _“просто так”_ из файла наружу ничего не выходит.
+**Клиент**:
 
-### Как сделать файл модулем
+- показывает интерфейс пользователю;
+- отправляет запросы;
+- получает ответы;
+- рендерит данные на страницу.
 
-Чтобы браузер понял, что файл является модулем, нужно подключить его так:
+**Сервер**:
 
-```html
-<script type="module" src="main.js"></script>
-```
+- принимает запрос;
+- выполняет бизнес-логику;
+- может обращаться к базе данных;
+- возвращает результат.
 
-Ключевой момент здесь - `type="module"`. Именно он говорит браузеру:
+### Почему это асинхронная операция
 
-- этот файл можно использовать с `import/export`;
-- у файла будет модульная область видимости;
-- и браузер будет загружать импортируемые файлы как зависимости.
+Сеть всегда требует времени:
 
-### Что меняется при `type="module"`
+- сервер может быть далеко;
+- запрос может обрабатываться не мгновенно;
+- сеть может быть медленной;
+- ответ может быть большим.
 
-Когда в теге `<script>` указан `type="module"`, браузер включает для файла модульный режим. На практике это даёт три важных эффекта:
+Поэтому запрос к серверу нельзя делать как обычную мгновенную функцию. Именно поэтому работа с сетью во frontend всегда связана с асинхронностью.
 
-- у каждого модуля своя область видимости, без “засорения” глобального пространства;
-- код модуля работает в строгом режиме (`"use strict"` по умолчанию);
-- модульный скрипт выполняется после разбора HTML (по поведению похоже на `defer`).
+## HTTP и HTTPS
 
-> **“Теперь, когда браузер умеет работать с модулями, разберём главный механизм, который связывает файлы между собой: export и import.”**
+Для общения клиента и сервера обычно используется протокол `HTTP`.
 
-## `export`: как “отдать” код из файла
+`HTTP` - это набор правил, по которым:
 
-Когда мы разбиваем проект на несколько файлов, появляется простая задача: у нас есть файл с полезными функциями, и мы хотим использовать их в другом файле.
+- клиент отправляет запрос;
+- сервер отвечает;
+- обе стороны понимают, что происходит.
 
-Но модуль по умолчанию _“закрыт”_. Всё, что вы объявили внутри файла, остаётся внутри этого файла. Чтобы что-то стало доступно снаружи, это нужно **явно экспортировать**.
+`HTTPS` - это защищённая версия `HTTP`, где данные передаются по зашифрованному соединению.
 
-Для этого в JavaScript используется ключевое слово `export`.
+### Из чего состоит HTTP-запрос
 
----
+У запроса обычно есть:
 
-### Именованный экспорт (named export)
+- `URL` - адрес ресурса;
+- `method` - что мы хотим сделать;
+- `headers` - служебная информация;
+- `body` - данные, которые мы отправляем.
 
-Именованный экспорт - это когда вы экспортируете сущность под её именем.
+### Из чего состоит HTTP-ответ
 
-Представим, что у нас есть файл `utils.js`, где лежат полезные функции:
+У ответа обычно есть:
+
+- `status` - числовой код ответа;
+- `headers` - служебная информация;
+- `body` - сами данные.
+
+### Основные HTTP-методы
+
+| Метод | Что делает |
+|------|------------|
+| `GET` | Получить данные |
+| `POST` | Создать запись или отправить данные |
+| `PUT` | Полностью заменить ресурс |
+| `PATCH` | Частично обновить ресурс |
+| `DELETE` | Удалить ресурс |
+
+### Основные статусы ответа
+
+| Статус | Смысл |
+|-------|-------|
+| `200` | Всё успешно |
+| `201` | Ресурс создан |
+| `400` | Ошибка в запросе |
+| `401` | Нужна авторизация |
+| `403` | Доступ запрещён |
+| `404` | Ресурс не найден |
+| `500` | Ошибка на сервере |
+
+> **Важно:** `404` и `500` - это не “сеть упала”, а нормальный ответ сервера с ошибочным статусом.
+
+## Что такое API
+
+`API (Application Programming Interface)` - это интерфейс, через который программы обмениваются данными.
+
+Во frontend чаще всего под API понимают набор URL-адресов, куда можно:
+
+- отправить запрос;
+- получить данные;
+- создать запись;
+- обновить запись;
+- удалить запись.
+
+Например, если у нас есть сервер с постами, у него могут быть такие точки входа:
+
+- `GET /posts`
+- `GET /posts/1`
+- `POST /posts`
+- `PATCH /posts/1`
+- `DELETE /posts/1`
+
+То есть API - это по сути договор:
+
+> “Вот по этим адресам и по этим правилам ты можешь получить или изменить данные.”
+
+## `fetch()`: главный браузерный инструмент для запросов
+
+Во frontend основным встроенным способом отправлять HTTP-запросы является `fetch()`.
+
+### Что такое `fetch`
+
+`fetch()`:
+
+- отправляет запрос;
+- возвращает `Promise`;
+- после завершения даёт объект `Response`.
+
+Пример:
 
 ```javascript
-// utils.js
-function formatTitle(title) {
-  return title.trim().toUpperCase();
-}
+const responsePromise = fetch("https://jsonplaceholder.typicode.com/posts/1");
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+console.log(responsePromise); // Promise
+```
+
+То есть `fetch()` не возвращает данные мгновенно. Он запускает асинхронную операцию и отдаёт `Promise`, который завершится позже.
+
+## Первый `GET`-запрос
+
+Самый базовый пример:
+
+```javascript
+fetch("https://jsonplaceholder.typicode.com/posts/1")
+  .then((response) => {
+    console.log(response);
+  })
+  .catch((error) => {
+    console.log("Ошибка сети:", error);
+  });
+```
+
+Здесь важно увидеть главное:
+
+- `response` - это **не данные поста**;
+- это объект ответа;
+- данные нужно прочитать отдельно.
+
+## Объект `Response`
+
+Когда `fetch` завершается, он отдаёт объект `Response`.
+
+У него есть важные свойства:
+
+- `response.status`
+- `response.ok`
+- `response.headers`
+- `response.url`
+
+И важные методы:
+
+- `response.text()`
+- `response.json()`
+- `response.blob()`
+
+Пример:
+
+```javascript
+fetch("https://jsonplaceholder.typicode.com/posts/1")
+  .then((response) => {
+    console.log("status:", response.status);
+    console.log("ok:", response.ok);
+  });
+```
+
+Если ответ успешный, обычно увидим:
+
+- `status: 200`
+- `ok: true`
+
+## Почему `fetch` не падает на `404` и `500`
+
+Это один из самых частых источников путаницы.
+
+Посмотрите на код:
+
+```javascript
+fetch("https://jsonplaceholder.typicode.com/posts/9999")
+  .then((response) => {
+    console.log(response.status);
+  })
+  .catch((error) => {
+    console.log("Не попадём сюда на 404");
+  });
+```
+
+Новички часто ждут, что `404` сразу пойдёт в `catch`. Но этого не происходит.
+
+Почему:
+
+- сеть сработала;
+- сервер ответил;
+- `fetch` получил ответ;
+- значит для `fetch` это не “ошибка сети”.
+
+То есть `404` - это не сбой транспорта, а просто ответ сервера.
+
+### Как правильно обрабатывать это
+
+```javascript
+fetch("https://jsonplaceholder.typicode.com/posts/9999")
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error(`Ошибка сервера: ${response.status}`);
+    }
+
+    return response.json();
+  })
+  .then((data) => {
+    console.log("Данные:", data);
+  })
+  .catch((error) => {
+    console.log("Ошибка:", error.message);
+  });
+```
+
+Здесь мы сами проверяем `response.ok` и вручную создаём ошибку через `throw`.
+
+## `JSON`: в каком виде приходят данные
+
+Веб-приложения очень часто обмениваются данными в формате `JSON`.
+
+### Что такое `JSON`
+
+`JSON (JavaScript Object Notation)` - это текстовый формат для передачи данных.
+
+Важно разделять:
+
+- **объект JavaScript**
+- **JSON-строку**
+
+Пример объекта:
+
+```javascript
+const user = {
+  name: "Alex",
+  age: 27,
+};
+```
+
+Пример JSON-строки:
+
+```javascript
+const jsonString = '{"name":"Alex","age":27}';
+```
+
+Снаружи это похоже, но это не одно и то же:
+
+- объект живёт в коде;
+- JSON - это текст.
+
+## `JSON.stringify()` и `JSON.parse()`
+
+### Превратить объект в строку
+
+```javascript
+const user = {
+  name: "Alex",
+  age: 27,
+};
+
+const jsonString = JSON.stringify(user);
+console.log(jsonString);
+```
+
+Это нужно, когда вы отправляете данные на сервер.
+
+### Превратить JSON-строку обратно в объект
+
+```javascript
+const jsonString = '{"name":"Alex","age":27}';
+
+const user = JSON.parse(jsonString);
+console.log(user);
+```
+
+Это нужно, когда вы получили строку и хотите работать с данными как с объектом.
+
+## Почему `response.json()` возвращает `Promise`
+
+Многих удивляет, что `response.json()` тоже асинхронный.
+
+Причина простая:
+
+- сначала нужно прочитать тело ответа;
+- потом распарсить текст в объект;
+- это не считается мгновенной операцией.
+
+Поэтому:
+
+```javascript
+fetch("https://jsonplaceholder.typicode.com/posts/1")
+  .then((response) => response.json())
+  .then((data) => {
+    console.log(data.title);
+  });
+```
+
+`response.json()` возвращает `Promise`, а не готовый объект сразу.
+
+## `GET`, `POST`, `PATCH`, `DELETE` на практике
+
+Теперь посмотрим на основные действия, которые frontend делает с сервером.
+
+### `GET`: получить данные
+
+```javascript
+fetch("https://jsonplaceholder.typicode.com/posts/1")
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error(`HTTP ошибка: ${response.status}`);
+    }
+
+    return response.json();
+  })
+  .then((post) => {
+    console.log(post.title);
+  })
+  .catch((error) => {
+    console.log(error.message);
+  });
+```
+
+### `POST`: отправить данные
+
+```javascript
+const newPost = {
+  title: "Новый пост",
+  body: "Содержимое поста",
+  userId: 1,
+};
+
+fetch("https://jsonplaceholder.typicode.com/posts", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(newPost),
+})
+  .then((response) => response.json())
+  .then((data) => {
+    console.log("Ответ сервера:", data);
+  });
+```
+
+Здесь важно:
+
+- указать `method`;
+- добавить `headers`;
+- превратить объект в строку через `JSON.stringify()`.
+
+### `PATCH`: обновить часть данных
+
+```javascript
+const updatedPost = {
+  title: "Обновлённый заголовок",
+};
+
+fetch("https://jsonplaceholder.typicode.com/posts/1", {
+  method: "PATCH",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(updatedPost),
+})
+  .then((response) => response.json())
+  .then((data) => {
+    console.log("Ответ сервера:", data);
+  });
+```
+
+### `DELETE`: удалить данные
+
+```javascript
+fetch("https://jsonplaceholder.typicode.com/posts/1", {
+  method: "DELETE",
+})
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error(`HTTP ошибка: ${response.status}`);
+    }
+
+    console.log("Пост удалён");
+  })
+  .catch((error) => {
+    console.log("Ошибка:", error.message);
+  });
+```
+
+> **JSONPlaceholder** - учебный сервис. Он имитирует создание, изменение и удаление записей, но не хранит их по-настоящему навсегда.
+
+## Универсальная функция `request()`
+
+В реальных проектах редко пишут `fetch` “в лоб” в каждом месте.
+
+Почти всегда повторяются одни и те же вещи:
+
+- метод;
+- заголовки;
+- `JSON.stringify()`;
+- проверка `response.ok`;
+- чтение `response.json()`;
+- обработка пустого ответа.
+
+Поэтому удобно вынести это в одну функцию.
+
+### Пример `request()`
+
+```javascript
+async function request(url, method = "GET", data = null) {
+  const options = { method };
+
+  if (data !== null) {
+    options.headers = {
+      "Content-Type": "application/json; charset=UTF-8",
+    };
+    options.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ошибка: ${response.status}`);
+  }
+
+  const contentLength = response.headers.get("content-length");
+
+  if (response.status === 204 || contentLength === "0") {
+    return null;
+  }
+
+  return response.json();
 }
 ```
 
-Пока это просто функции внутри модуля. Другие файлы о них не знают. Чтобы сделать их доступными снаружи, мы добавляем `export`.
+### Почему это удобно
 
-#### Способ 1: export прямо при объявлении
-
-Это самый простой и самый часто используемый вариант:
+Теперь в приложении вы пишете уже не детали сетевого уровня, а смысл:
 
 ```javascript
-// utils.js
-export function formatTitle(title) {
-  return title.trim().toUpperCase();
-}
-
-export function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-```
-
-Теперь `formatTitle` и `wait` экспортируются из файла `utils.js`.
-
-#### Способ 2: экспорт в конце файла
-
-Иногда удобнее объявить функции обычным образом, а экспорт сделать внизу, чтобы сразу видеть “что именно этот модуль отдаёт наружу”.
-
-```javascript
-// utils.js
-function formatTitle(title) {
-  return title.trim().toUpperCase();
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export { formatTitle, wait };
-```
-
-Смысл тот же самый, разница только в стиле оформления.
-
-#### Экспорт переменных и констант
-
-Экспортировать можно не только функции:
-
-```javascript
-// config.js
-export const API_URL = "https://jsonplaceholder.typicode.com/posts";
-export const LIMIT = 10;
-```
-
-#### Экспорт с переименованием
-
-Иногда у вас есть имя внутри файла одно, а наружу вы хотите отдать другое (например, чтобы избежать конфликтов).
-
-```javascript
-// utils.js
-function renderPosts(posts) {
-  console.log(posts);
-}
-
-export { renderPosts as renderList };
-```
-
-Теперь снаружи этот экспорт будет называться `renderList`.
-
-#### Экспорт по умолчанию (default export)
-
-Кроме именованных экспортов, в JavaScript есть **экспорт по умолчанию** - `export default`.
-
-Он используется в ситуациях, когда модуль _“в целом”_ отдаёт наружу одну главную сущность: одну функцию, один класс или один объект.
-
-Главная идея такая:
-
-> **в одном файле может быть только один `default export`.**
-
-Допустим, файл отвечает только за одну задачу - например, форматирование текста:
-
-```javascript
-// formatTitle.js
-export default function formatTitle(title) {
-  return title.trim().toUpperCase();
-}
-```
-
-Такой экспорт называется _“по умолчанию”_, потому что импортировать его можно без фигурных скобок.
-
-**Пример: default export для класса**
-
-Если файл содержит один основной класс, это тоже типичный кейс для default export:
-
-```javascript
-// ApiClient.js
-export default class ApiClient {
-  constructor(baseUrl) {
-    this.baseUrl = baseUrl;
+async function run() {
+  try {
+    const post = await request("https://jsonplaceholder.typicode.com/posts/1");
+    console.log(post);
+  } catch (error) {
+    console.log(error.message);
   }
 }
 ```
 
-**Пример: default export для объекта**
+Так код становится чище и легче поддерживается.
 
-Если у вас есть файл, который просто хранит конфигурацию, можно экспортировать объект по умолчанию:
+## UI-состояния: `loading`, `success`, `empty`, `error`
 
-```javascript
-// config.js
-export default {
-  API_URL: "https://jsonplaceholder.typicode.com",
-  LIMIT: 10,
-};
+Хороший frontend не просто отправляет запрос. Он ещё и честно показывает пользователю, что происходит.
+
+Минимальный набор состояний:
+
+1. **loading** - данные загружаются;
+2. **success** - данные пришли и отображены;
+3. **empty** - данные пришли, но их нет;
+4. **error** - произошла ошибка.
+
+### Почему это важно
+
+Без этих состояний пользователь не понимает:
+
+- запрос ещё идёт или всё сломалось;
+- данные пустые или ещё не пришли;
+- можно ли нажимать кнопку снова;
+- что делать, если произошла ошибка.
+
+## Мини-пример интерфейса
+
+### Разметка
+
+```html
+<div id="status"></div>
+<ul id="posts"></ul>
+
+<button id="loadBtn">Загрузить посты</button>
 ```
 
-#### Что нужно помнить про `export`
-
-- `export` делает сущность доступной для других файлов;
-- именованный экспорт позволяет экспортировать несколько сущностей из одного файла;
-- `export default` используется, когда файл отдаёт одну главную вещь;
-
-## `import`: как “получить” код из другого файла
-
-Выше мы разобрали, как отдать код из файла с помощью `export`. Но это только половина дела. Чтобы использовать эти функции, переменные или классы в другом файле, нам нужно **импортировать** их.
-
-Для этого используется ключевое слово `import`.
-
-### Базовый синтаксис `import`
-
-Представим, что у нас есть файл `utils.js`:
+### Функции для интерфейса
 
 ```javascript
-// utils.js
-export function formatTitle(title) {
-  return title.trim().toUpperCase();
+const statusEl = document.getElementById("status");
+const postsEl = document.getElementById("posts");
+
+function setStatus(text) {
+  statusEl.textContent = text;
 }
 
-export function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function clearPosts() {
+  postsEl.innerHTML = "";
+}
+
+function renderPosts(posts) {
+  postsEl.innerHTML = posts
+    .map((post) => `<li><strong>${post.title}</strong><br>${post.body}</li>`)
+    .join("");
 }
 ```
 
-Теперь в `main.js` мы можем _“взять”_ эти функции:
+### Загрузка постов
 
 ```javascript
-// main.js
-import { formatTitle, wait } from "./utils.js";
+const API_URL = "https://jsonplaceholder.typicode.com/posts";
+const loadBtn = document.getElementById("loadBtn");
 
-console.log(formatTitle("  hello  "));
-wait(1000).then(() => console.log("Прошла 1 секунда"));
-```
+async function loadPosts() {
+  if (loadBtn.disabled) return;
 
-**Важно:**
+  loadBtn.disabled = true;
 
-1. Фигурные скобки `{}` используются для именованных импортов. Внутри них перечисляются имена экспортированных сущностей, которые мы хотим использовать.
-2. В этом примере путь начинается с `./` - это означает “файл рядом с текущим файлом”.
+  try {
+    setStatus("Загрузка...");
+    clearPosts();
 
-### Почему в этом примере нужно указывать расширение `.js`
+    const posts = await request(API_URL);
 
-Очень важный момент: при импорте модулей в браузере в этом формате нужно указывать расширение `.js`. Это связано с тем, что браузер не может угадать, какой файл вы хотите импортировать, и требует точного указания.
+    if (!posts || posts.length === 0) {
+      setStatus("Постов нет");
+      return;
+    }
 
-```javascript
-import { formatTitle } from "./utils.js"; // правильно
-import { formatTitle } from "./utils"; // ошибка
-```
-
-### Импорт с переименованием
-
-Иногда имя функции в модуле вам подходит, но в вашем файле оно конфликтует с другим именем. Тогда вы можете переименовать импорт:
-
-```javascript
-import { wait as delay } from "./utils.js";
-
-delay(500).then(() => console.log("Задержка 0.5 сек"));
-```
-
-То есть `wait` внутри `utils.js` будет доступна как `delay` в вашем файле.
-
-### Импорт всего модуля целиком
-
-Иногда удобно импортировать весь модуль целиком, особенно если там много экспортов. Для этого используется `* as`:
-
-```javascript
-import * as utils from "./utils.js";
-
-console.log(utils.formatTitle("  hi  "));
-utils.wait(1000).then(() => console.log("OK"));
-```
-
-В этом случае все экспортированные сущности из `utils.js` будут доступны через объект `utils`.
-
-> Не рекомендуется использовать `import * as` для больших модулей, так как это может привести к путанице и неочевидности, какие именно функции используются в вашем файле. Лучше импортировать только то, что нужно.
-
-### Импорт по умолчанию (default import)
-
-Если в модуле есть `export default`, то его можно импортировать без фигурных скобок:
-
-Например, файл `config.js`:
-
-```javascript
-// config.js
-export default {
-  API_URL: "https://jsonplaceholder.typicode.com",
-  LIMIT: 10,
-};
-```
-
-Тогда в `main.js` мы можем импортировать его так:
-
-```javascript
-import config from "./config.js";
-console.log(config.API_URL);
-```
-
-Здесь важно запомнить правило:
-
-- `import { ... }` - для именованных экспортов
-- `import something` - для `default export`
-
-### Комбинированный импорт
-
-Если в одном файле есть и именованные экспорты, и `default export`, то их можно импортировать вместе:
-
-```javascript
-// utils.js
-export function formatTitle(title) {
-  return title.trim().toUpperCase();
+    setStatus("");
+    renderPosts(posts.slice(0, 10));
+  } catch (error) {
+    setStatus(`Ошибка: ${error.message}`);
+  } finally {
+    loadBtn.disabled = false;
+  }
 }
 
-const config = {
-  API_URL: "https://jsonplaceholder.typicode.com",
-  LIMIT: 10,
-};
-
-export default config;
+loadBtn.addEventListener("click", loadPosts);
 ```
 
-Пример импорта в `main.js`:
+Здесь уже видно важный реальный паттерн:
 
-```javascript
-import config, { formatTitle } from "./utils.js";
-```
+- блокируем кнопку;
+- показываем `loading`;
+- ждём ответ;
+- рендерим успех или ошибку;
+- в `finally` восстанавливаем интерфейс.
 
-Такой синтаксис позволяет импортировать и `default export`, и именованные экспорты из одного файла одновременно.
+## Query params: параметры в URL
 
-## Структура проекта: как разделить код по файлам
+Очень часто API позволяет не получать “всё подряд”, а запрашивать данные более точно:
 
-Разделение кода на модули - это не только про синтаксис `import/export`. Это ещё и про **структуру проекта**. Когда у вас появляется несколько файлов, важно продумать структуру проекта. Хорошая структура помогает быстро ориентироваться в коде и понимать, где что лежит.
+- фильтровать;
+- ограничивать количество;
+- передавать номер страницы;
+- сортировать.
 
-### Пример структуры проекта
+Такие параметры передаются в URL после `?` и называются **query params**.
 
-Сделаем приближенную структуру к реальному проекту:
+Пример:
 
 ```text
-project/
-  index.html
-
-  css/
-    style.css
-
-  js/
-    main.js
-
-    components/
-      header.js
-      footer.js
-      main.js
-
-    config/
-      config.js
-
-    utils/
-      request.js
-      wait.js
+/posts?userId=1&_limit=5
 ```
 
-Подключим `css` и `js` в `index.html`:
-
-```html
-<link rel="stylesheet" href="./css/style.css" />
-<script type="module" src="./js/main.js"></script>
-```
-
-Дальше в `main.js` мы будем импортировать нужные модули из папок `components`, `config` и `utils`.
-
-Такой подход позволяет:
-
-- логически разделить код по папкам (компоненты, утилиты, конфигурация);
-- быстро находить нужные файлы;
-- поддерживать чистоту и порядок в проекте.
-
-> Часто структура `js` папки повторяет структуру компонентов в интерфейсе. Например, если у вас есть `Header`, `Footer` и `Main`, то логично создать папку `components` и положить туда соответствующие файлы. Это помогает сразу понять, где искать код, связанный с конкретной частью интерфейса. Аналогично со структурой папки `css` или `scss`.
-
-### Практика: собираем страницу из модулей (Header / Main / Footer) и вставляем в #root
-
-Сделаем базовый каркас страницы, который будет состоять из трёх основных компонентов: `Header`, `Main` и `Footer`. Каждый компонент будет жить в своём файле, и мы будем импортировать их в `main.js`, чтобы собрать страницу.
-
-Для этого добавим в `index.html` элемент с id `root`, куда будем вставлять нашу страницу:
-
-```html
-<body>
-  <div id="root"></div>
-</body>
-```
-
-И проверим, что все нужные файлы подключены к `index.html`:
-
-```html
-<link rel="stylesheet" href="./css/style.css" />
-<script type="module" src="./js/main.js"></script>
-```
-
-### Первый шаг: Компоненты
-
-Будем заполнять наши файлы `header.js`, `main.js` и `footer.js` следующим образом:
-
-**js/components/header.js**
+### Пример руками
 
 ```javascript
-export function Header() {
-  return `
-    <header class="header">
-      <h1>Мой проект на модулях</h1>
-      <nav>
-        <a href="#">Главная</a>
-        <a href="#">Посты</a>
-        <a href="#">Контакты</a>
-      </nav>
-    </header>
-  `;
-}
-```
-
-**js/components/main.js**
-
-```javascript
-export function Main() {
-  return `
-    <main class="main">
-      <h2>Добро пожаловать!</h2>
-      <p>Это пример страницы, собранной из модулей.</p>
-    </main>
-  `;
-}
-```
-
-**js/components/footer.js**
-
-```javascript
-export function Footer() {
-  const year = new Date().getFullYear();
-
-  return `
-    <footer class="footer">
-      <p>&copy; ${year} Мой проект</p>
-    </footer>
-  `;
-}
-```
-
-### Второй шаг: Собираем страницу в main.js
-
-Теперь в `main.js` мы будем импортировать эти компоненты и вставлять их в `#root`:
-
-```javascript
-import { Header } from "./components/header.js";
-import { Main } from "./components/main.js";
-import { Footer } from "./components/footer.js";
-
-const root = document.getElementById("root");
-
-function App() {
-  return `
-    ${Header()}
-    ${Main()}
-    ${Footer()}
-  `;
-}
-
-root.innerHTML = App();
-```
-
-Дальше можно добавить стили в `style.css`, чтобы страница выглядела более красиво:
-
-```css
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 0;
-}
-
-.header,
-.footer {
-  padding: 16px;
-  background: #f3f3f3;
-}
-
-.main {
-  padding: 16px;
-}
-
-nav a {
-  margin-right: 12px;
-  text-decoration: none;
-}
-```
-
-## Практика: мини SPA на модулях (ru/en/cs), события в отдельных файлах
-
-Давайте усложним задачу и сделаем мини SPA (Single Page Application) с поддержкой трёх языков: русский, английский и чешский.
-
-Суть в том, что у нас будет одна страница, которая может отображать контент на разных языках. И при этом мы будем держать логику переключения языков в отдельном файле, чтобы не смешивать её с остальной частью приложения.
-
-На самом деле, это не полноценное SPA, так как мы не будем использовать роутинг и не будем менять URL. Но идея в том, что у нас будет одна страница, которая может динамически менять своё содержимое в зависимости от выбранного языка.
-
----
-
-## Структура проекта
-
-```text
-project/
-  index.html
-
-  css/
-    style.css
-
-  js/
-    app.js
-    main.js
-    render.js
-
-    components/
-      header.js
-      main.js
-      footer.js
-
-    handlers/
-      lang.js
-
-    i18n/
-      ru.js
-      en.js
-      cs.js
-      index.js
-
-    services/
-      langStorage.js
-```
-
-### HTML 
-
-```html
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lecture 12 - Modules i18n</title>
-  <link rel="stylesheet" href="./css/style.css" />
-</head>
-<body>
-  <div id="root"></div>
-
-  <script type="module" src="./js/main.js"></script>
-</body>
-</html>
-```
-
-### Минимальный CSS
-
-```css
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-}
-
-.header, .footer {
-  padding: 16px;
-  background: #f3f3f3;
-}
-
-.main {
-  padding: 16px;
-}
-
-.langs__btn {
-  margin-right: 8px;
-}
-
-[data-active="1"] {
-  font-weight: bold;
-}
-```
-
-### js/services/langStorage.js
-Этот файл отвечает только за сохранение и получение языка из localStorage.
-
-```javascript
-const STORAGE_KEY = "lang";
-
-export function getSavedLang(defaultLang = "ru") {
-  const lang = localStorage.getItem(STORAGE_KEY);
-  if (lang === "ru" || lang === "en" || lang === "cs") return lang;
-  return defaultLang;
-}
-
-export function saveLang(lang) {
-  localStorage.setItem(STORAGE_KEY, lang);
-}
-``` 
-
-### Переводы как JS-модули
-
-**js/i18n/ru.js**
-
-```javascript
-export default {
-  app_title: "Мой сайт на модулях",
-  main_title: "Добро пожаловать!",
-  main_text: "Это пример одностраничного сайта с модулями и переводами.",
-  footer_text: "Все права защищены"
-};
-```
-
-**js/i18n/en.js**
-
-```javascript
-export default {
-  app_title: "My Modular Site",
-  main_title: "Welcome!",
-  main_text: "This is an example of a single-page site with modules and translations.",
-  footer_text: "All rights reserved"
-};
-```
-
-**js/i18n/cs.js**
-
-```javascript
-export default {
-  app_title: "Můj modulární web",
-  main_title: "Vítejte!",
-  main_text: "Toto je příklad jednostránkového webu s moduly a překlady.",
-  footer_text: "Všechna práva vyhrazena"
-};
-```
-
-**js/i18n/index.js**
-
-Здесь мы объединяем все словари в один объект и делаем простую функцию `t(key)`, которая возвращает перевод по текущему языку.
-
-```javascript
-import ru from "./ru.js";
-import en from "./en.js";
-import cs from "./cs.js";
-
-import { getSavedLang } from "../services/langStorage.js";
-
-const translations = { ru, en, cs };
-
-export function getCurrentLang() {
-  return getSavedLang("ru");
-}
-
-export function t(key) {
-  const lang = getCurrentLang();
-  return translations[lang]?.[key] ?? `[[${key}]]`;
-}
-```
-
-### Компоненты
-
-**js/components/header.js**
-
-```javascript
-import { t, getCurrentLang } from "../i18n/index.js";
-
-export function Header() {
-  const lang = getCurrentLang();
-
-  return `
-    <header class="header">
-      <h1>${t("app_title")}</h1>
-
-      <div class="langs">
-        <button class="langs__btn" data-lang="ru" ${lang === "ru" ? "data-active='1'" : ""}>RU</button>
-        <button class="langs__btn" data-lang="en" ${lang === "en" ? "data-active='1'" : ""}>EN</button>
-        <button class="langs__btn" data-lang="cs" ${lang === "cs" ? "data-active='1'" : ""}>CS</button>
-      </div>
-    </header>
-  `;
-}
-```
-
-**js/components/main.js**
-
-```javascript
-import { t } from "../i18n/index.js";
-
-export function Main() {
-  return `
-    <main class="main">
-      <h2>${t("main_title")}</h2>
-      <p>${t("main_text")}</p>
-    </main>
-  `;
-}
-```
-
-**js/components/footer.js**
-
-```javascript
-import { t } from "../i18n/index.js";
-
-export function Footer() {
-  const year = new Date().getFullYear();
-
-  return `
-    <footer class="footer">
-      <p>© ${year} - ${t("footer_text")}</p>
-    </footer>
-  `;
-}
-```
-
-### Сборка приложения
-
-**js/app.js**
-
-```javascript
-import { Header } from "./components/header.js";
-import { Main } from "./components/main.js";
-import { Footer } from "./components/footer.js";
-
-export function App() {
-  return `
-    ${Header()}
-    ${Main()}
-    ${Footer()}
-  `;
-}
-```
-
-**js/render.js**
-
-```javascript
-import { App } from "./app.js";
-
-export function renderApp(root) {
-  root.innerHTML = App();
-}
-```
-
-### Обработчики кликов
-
-**js/handlers/lang.js**
-Здесь логика очень простая:
-- пользователь нажал кнопку языка;
-- мы сохранили язык в `localStorage`;
-- перерисовали интерфейс
-
-```javascript
-import { saveLang } from "../services/langStorage.js";
-import { renderApp } from "../render.js";
-
-export function initLangHandlers(root) {
-  root.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-lang]");
-    if (!btn) return;
-
-    const lang = btn.dataset.lang;
-    if (lang !== "ru" && lang !== "en" && lang !== "cs") return;
-
-    saveLang(lang);
-    renderApp(root);
+fetch("https://jsonplaceholder.typicode.com/posts?userId=1&_limit=5")
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error(`HTTP ошибка: ${response.status}`);
+    }
+
+    return response.json();
+  })
+  .then((posts) => {
+    console.log("Постов получено:", posts.length);
   });
-}
 ```
 
-### Точка входа
-**js/main.js**
-
-`main.js` делает две вещи:
-- рендерит приложение в `#root`;
-- подключает обработчики кликов.
+### Безопасная сборка через `URLSearchParams`
 
 ```javascript
-import { renderApp } from "./render.js";
-import { initLangHandlers } from "./handlers/lang.js";
+const params = new URLSearchParams({
+  userId: 1,
+  _limit: 5,
+});
 
-const root = document.getElementById("root");
+const url = `https://jsonplaceholder.typicode.com/posts?${params.toString()}`;
 
-renderApp(root);
-initLangHandlers(root);
+fetch(url)
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error(`HTTP ошибка: ${response.status}`);
+    }
+
+    return response.json();
+  })
+  .then((posts) => {
+    console.log("URL:", url);
+    console.log("Постов получено:", posts.length);
+  });
 ```
 
-### Что важно увидеть в этом примере
+Это лучше, чем собирать URL руками строкой.
 
-- Компоненты лежат в `components/` и отвечают только за `UI`.
-- Обработчики лежат в `handlers/` и отвечают только за события.
-- Переводы лежат в `i18n/` как обычные `JS`-модули.
-- `LocalStorage` вынесен в `services/langStorage.js`.
-- `main.js` - точка входа: минимум логики, только запуск приложения.
+## Частые ошибки новичков
+
+### 1) Думать, что `fetch()` сразу возвращает данные
+
+Нет. `fetch()` возвращает `Promise`.
+
+### 2) Думать, что `response` и есть готовый объект данных
+
+Нет. `response` - это объект ответа. Обычно нужно ещё вызвать `response.json()`.
+
+### 3) Не проверять `response.ok`
+
+Тогда `404` и `500` пройдут незаметно как “обычный ответ”.
+
+### 4) Забывать `JSON.stringify()` при `POST` и `PATCH`
+
+Сервер часто ждёт строку, а не живой JavaScript-объект.
+
+### 5) Не ставить `Content-Type: application/json`
+
+Тогда сервер может не понять формат данных.
+
+### 6) Не использовать `finally` для восстановления интерфейса
+
+Кнопка может остаться заблокированной после ошибки.
+
+### 7) Не делать `empty`-состояние
+
+Пустой экран без объяснения для пользователя выглядит как поломка.
+
+### 8) Смешивать сеть, DOM и обработчики в одну огромную функцию
+
+Лучше разделять:
+
+- функции для сети;
+- функции рендера;
+- обработчики событий.
 
 ## Заключение
 
-В этой лекции мы разобрали модули в `JavaScript` и наконец сделали то, что делает любой реальный проект: перестали складывать всё в один файл.
+В этой лекции вы разобрали прикладную сетевую часть frontend-разработки:
 
-Теперь вы понимаете:
-- что такое модуль и почему у него своя область видимости;
-- как включить модульный режим через `type="module"`;
-- как работает `export` (именованный и `export default`);
-- как работает `import` и почему важны пути и расширение `.js`;
-- как строить структуру проекта по папкам (`components`, `handlers`, `services`, `i18n`);
-- как собирать страницу в `#root` из компонентов через `main.js`.
+- как клиент и сервер обмениваются данными;
+- что такое `HTTP`, `status`, `method`, `API`;
+- как использовать `fetch()`;
+- почему `fetch` не падает на `404` автоматически;
+- как читать данные через `response.json()`;
+- зачем нужны `JSON.stringify()` и `JSON.parse()`;
+- как сделать универсальную функцию `request()`;
+- как выстроить `loading / success / empty / error`.
 
 Главная мысль этой лекции:
 
-> модули - это не про синтаксис, а про структуру и порядок в проекте.
+> **Работа с API - это не только “отправить fetch”. Это ещё и правильно прочитать ответ, обработать ошибку и честно показать пользователю состояние интерфейса.**
+
+Следующая тема - модули и структура проекта. Именно там мы начнём раскладывать эту логику по отдельным файлам, чтобы приложение не превращалось в один огромный `main.js`.
+
+## Чек-лист после лекции
+
+После этой лекции вы должны уметь:
+
+- объяснить разницу между клиентом и сервером;
+- объяснить, что такое `HTTP` и `API`;
+- назвать базовые методы `GET`, `POST`, `PATCH`, `DELETE`;
+- объяснить, что такое `Response`;
+- использовать `fetch` с `then` и с `async/await`;
+- проверить `response.ok`;
+- читать ответ через `response.json()`;
+- отправлять данные через `JSON.stringify()`;
+- собрать query params через `URLSearchParams`;
+- реализовать `loading`, `empty`, `error` в интерфейсе.
+
+## Практика
+
+> Условия:
+>
+> - если задание про сеть, используйте `jsonplaceholder`;
+> - если задание про интерфейс, вывод должен быть не только в `console.log`, но и в `DOM`;
+> - обрабатывайте ошибки через `try/catch` или `.catch()`.
+
+1. Отправьте `GET`-запрос на:
+
+`https://jsonplaceholder.typicode.com/posts/1`
+
+Выведите:
+
+- `status`
+- `ok`
+- `title` полученного поста
+
+2. Отправьте запрос на несуществующий ресурс:
+
+`https://jsonplaceholder.typicode.com/posts/999999`
+
+Сделайте проверку через `response.ok` и выведите текст ошибки.
+
+3. Создайте объект:
+
+```javascript
+const user = {
+  name: "Alex",
+  age: 27,
+};
+```
+
+Превратите его в строку через `JSON.stringify()`, потом обратно в объект через `JSON.parse()`.
+
+4. Отправьте `POST`-запрос на:
+
+`https://jsonplaceholder.typicode.com/posts`
+
+С телом:
+
+```javascript
+{
+  title: "Hello",
+  body: "World",
+  userId: 1
+}
+```
+
+5. Отправьте `PATCH`-запрос на:
+
+`https://jsonplaceholder.typicode.com/posts/1`
+
+И обновите только `title`.
+
+6. Напишите свою функцию `request(url, method = "GET", data = null)`.
+
+Проверьте её на:
+
+- `GET`
+- `POST`
+- `PATCH`
+
+7. Сделайте простой интерфейс:
+
+```html
+<button id="loadBtn">Load posts</button>
+<div id="status"></div>
+<ul id="posts"></ul>
+```
+
+По клику:
+
+- показать `Loading...`;
+- загрузить посты;
+- вывести первые `10`;
+- при ошибке показать сообщение;
+- в конце вернуть кнопку в рабочее состояние.
+
+8. Добавьте поле `userId` и кнопку фильтра.
+
+Загрузка должна идти по URL вида:
+
+`/posts?userId=1&_limit=10`
+
+Собирайте параметры через `URLSearchParams`.
+
+9. Добавьте `empty`-состояние:
+
+- если массив пустой, выводите `Постов нет`.
+
+10. Дополнительно:
+
+- добавьте форму создания поста;
+- после успешного `POST` добавляйте новый пост в начало списка на странице.
+
+## Домашняя работа
+
+Сделайте мини-проект **“Работа с API и постами”**.
+
+### Что нужно создать
+
+Создайте папку проекта, например:
+
+`hw12_fetch_posts/`
+
+Внутри должны быть файлы:
+
+- `index.html`
+- `style.css`
+- `main.js`
+
+### Интерфейс
+
+На странице должны быть:
+
+- блок статуса `#status`
+- список постов `#posts`
+- кнопка `Load posts`
+- поле `userId`
+- кнопка `Filter`
+- форма создания поста:
+  - `title`
+  - `body`
+  - кнопка `Create`
+
+У каждого поста в списке должны быть:
+
+- кнопка `Delete`
+- кнопка `Change title`
+
+### Что должно работать
+
+#### 1) Загрузка постов
+
+По кнопке `Load posts`:
+
+- показать `Loading...`
+- очистить старый список
+- отправить `GET /posts`
+- показать первые `10` постов
+- при ошибке показать `Error: ...`
+
+#### 2) Фильтр по `userId`
+
+По кнопке `Filter`:
+
+- взять `userId` из поля
+- собрать URL через `URLSearchParams`
+- отправить `GET /posts?userId=...&_limit=10`
+- отрисовать результат
+
+#### 3) Создание поста
+
+По отправке формы:
+
+- собрать данные формы
+- отправить `POST /posts`
+- после успеха добавить новый пост в начало списка
+- очистить форму
+
+#### 4) Удаление поста
+
+По кнопке `Delete`:
+
+- отправить `DELETE /posts/{id}`
+- если всё успешно, удалить пост из DOM
+
+#### 5) Изменение заголовка
+
+По кнопке `Change title`:
+
+- спросить новый текст через `prompt`
+- отправить `PATCH /posts/{id}`
+- после успеха обновить заголовок поста на странице
+
+### Обязательные технические требования
+
+1. Все сетевые запросы должны идти через одну функцию:
+
+```javascript
+async function request(url, method = "GET", data = null) {}
+```
+
+2. В `request()` обязательно должны быть:
+
+- `method`
+- `headers`, если есть `data`
+- `JSON.stringify(data)`, если есть тело запроса
+- проверка `response.ok`
+- возврат `response.json()` или `null`, если тело пустое
+
+3. В интерфейсе обязательно должны быть состояния:
+
+- `loading`
+- `success`
+- `empty`
+- `error`
+
+4. Пока идёт запрос по кнопке загрузки или фильтрации, соответствующая кнопка должна быть `disabled`.
+
+5. Для возврата кнопки в рабочее состояние используйте `finally`.
+
+### Дополнительно
+
+Если хотите усложнить проект:
+
+1. Сделайте отдельный блок для ошибок красным цветом.
+2. Добавьте кнопку `Reload`.
+3. Добавьте кнопку `Load comments` для конкретного поста.
+4. Сделайте универсальный рендер функции `renderPosts(posts)`.
+
+### Что важно в решении
+
+У вас должно быть видно не просто “я могу вызвать `fetch`”, а именно зрелый учебный сценарий:
+
+- есть одна точка входа для сети через `request()`;
+- есть проверка ошибок;
+- есть чтение `JSON`;
+- есть работа с `DOM`;
+- есть понятные статусы интерфейса;
+- есть `GET`, `POST`, `PATCH`, `DELETE`;
+- есть фильтрация через query params.
