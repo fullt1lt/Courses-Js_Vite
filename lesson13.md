@@ -414,415 +414,81 @@ project/
 
 > Часто структура `js` папки повторяет структуру компонентов в интерфейсе. Например, если у вас есть `Header`, `Footer` и `Main`, то логично создать папку `components` и положить туда соответствующие файлы. Это помогает сразу понять, где искать код, связанный с конкретной частью интерфейса. Аналогично со структурой папки `css` или `scss`.
 
-### Практика: собираем страницу из модулей (Header / Main / Footer) и вставляем в #root
 
-Сделаем базовый каркас страницы, который будет состоять из трёх основных компонентов: `Header`, `Main` и `Footer`. Каждый компонент будет жить в своём файле, и мы будем импортировать их в `main.js`, чтобы собрать страницу.
+В Лекции 13 не начинаем новый абстрактный проект. Мы **разделяем текущий `Storefront` на модули**, чтобы код стал похож на реальную структуру приложения.
 
-Для этого добавим в `index.html` элемент с id `root`, куда будем вставлять нашу страницу:
+## Практика
 
-```html
-<body>
-  <div id="root"></div>
-</body>
-```
-
-И проверим, что все нужные файлы подключены к `index.html`:
-
-```html
-<link rel="stylesheet" href="./css/style.css" />
-<script type="module" src="./js/main.js"></script>
-```
-
-### Первый шаг: Компоненты
-
-Будем заполнять наши файлы `header.js`, `main.js` и `footer.js` следующим образом:
-
-**js/components/header.js**
-
-```javascript
-export function Header() {
-  return `
-    <header class="header">
-      <h1>Мой проект на модулях</h1>
-      <nav>
-        <a href="#">Главная</a>
-        <a href="#">Посты</a>
-        <a href="#">Контакты</a>
-      </nav>
-    </header>
-  `;
-}
-```
-
-**js/components/main.js**
-
-```javascript
-export function Main() {
-  return `
-    <main class="main">
-      <h2>Добро пожаловать!</h2>
-      <p>Это пример страницы, собранной из модулей.</p>
-    </main>
-  `;
-}
-```
-
-**js/components/footer.js**
-
-```javascript
-export function Footer() {
-  const year = new Date().getFullYear();
-
-  return `
-    <footer class="footer">
-      <p>&copy; ${year} Мой проект</p>
-    </footer>
-  `;
-}
-```
-
-### Второй шаг: Собираем страницу в main.js
-
-Теперь в `main.js` мы будем импортировать эти компоненты и вставлять их в `#root`:
-
-```javascript
-import { Header } from "./components/header.js";
-import { Main } from "./components/main.js";
-import { Footer } from "./components/footer.js";
-
-const root = document.getElementById("root");
-
-function App() {
-  return `
-    ${Header()}
-    ${Main()}
-    ${Footer()}
-  `;
-}
-
-root.innerHTML = App();
-```
-
-Дальше можно добавить стили в `style.css`, чтобы страница выглядела более красиво:
-
-```css
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 0;
-}
-
-.header,
-.footer {
-  padding: 16px;
-  background: #f3f3f3;
-}
-
-.main {
-  padding: 16px;
-}
-
-nav a {
-  margin-right: 12px;
-  text-decoration: none;
-}
-```
-
-## Практика: мини SPA на модулях (ru/en/cs), события в отдельных файлах
-
-Давайте усложним задачу и сделаем мини SPA (Single Page Application) с поддержкой трёх языков: русский, английский и чешский.
-
-Суть в том, что у нас будет одна страница, которая может отображать контент на разных языках. И при этом мы будем держать логику переключения языков в отдельном файле, чтобы не смешивать её с остальной частью приложения.
-
-На самом деле, это не полноценное SPA, так как мы не будем использовать роутинг и не будем менять URL. Но идея в том, что у нас будет одна страница, которая может динамически менять своё содержимое в зависимости от выбранного языка.
-
----
-
-## Структура проекта
+1. Разбейте текущий код на папки:
 
 ```text
-project/
-  index.html
-
-  css/
-    style.css
-
-  js/
-    app.js
-    main.js
-    render.js
-
-    components/
-      header.js
-      main.js
-      footer.js
-
-    handlers/
-      lang.js
-
-    i18n/
-      ru.js
-      en.js
-      cs.js
-      index.js
-
-    services/
-      langStorage.js
+src/
+  main.js
+  app/
+    initApp.js
+    state.js
+  components/
+    Header.js
+    ProductCard.js
+    CatalogSummary.js
+    EmptyState.js
+  pages/
+    catalog.js
+    favorites.js
+    settings.js
+  services/
+    api.js
+    storage.js
+  handlers/
+    catalogHandlers.js
+    formHandlers.js
 ```
 
-### HTML 
+2. Вынесите рендер карточки товара и рендер empty-state в `components/`.
 
-```html
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lecture 12 - Modules i18n</title>
-  <link rel="stylesheet" href="./css/style.css" />
-</head>
-<body>
-  <div id="root"></div>
+3. Вынесите работу с `localStorage` в `services/storage.js`.
 
-  <script type="module" src="./js/main.js"></script>
-</body>
-</html>
-```
+4. Вынесите сетевую функцию `request()` в `services/api.js`.
 
-### Минимальный CSS
+5. Вынесите обработчики событий каталога и форм в `handlers/`.
 
-```css
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-}
+6. Сделайте `main.js` максимально коротким:
+   - инициализация приложения;
+   - первый рендер;
+   - подключение обработчиков.
 
-.header, .footer {
-  padding: 16px;
-  background: #f3f3f3;
-}
+## Домашняя работа
 
-.main {
-  padding: 16px;
-}
+Рефакторинг проекта в **`Storefront - модульное приложение`**.
 
-.langs__btn {
-  margin-right: 8px;
-}
+### Что нужно получить
 
-[data-active="1"] {
-  font-weight: bold;
-}
-```
+1. Один проект, в котором:
+   - нет длинного файла `main.js` на сотни строк;
+   - логика разнесена по ролям;
+   - модули импортируются явно.
 
-### js/services/langStorage.js
-Этот файл отвечает только за сохранение и получение языка из localStorage.
+2. Минимальная структура:
+   - `components/`
+   - `pages/`
+   - `services/`
+   - `handlers/`
+   - `app/`
 
-```javascript
-const STORAGE_KEY = "lang";
+### Обязательные требования
 
-export function getSavedLang(defaultLang = "ru") {
-  const lang = localStorage.getItem(STORAGE_KEY);
-  if (lang === "ru" || lang === "en" || lang === "cs") return lang;
-  return defaultLang;
-}
+1. `main.js` не хранит бизнес-логику и не содержит большой HTML-шаблон.
+2. Рендер карточки, рендер списка и empty-state лежат в отдельных модулях.
+3. Работа с сетью лежит отдельно от DOM.
+4. Работа с `localStorage` лежит отдельно от DOM.
+5. Обработчики событий не дублируют код рендера.
+6. В коде нет неявных глобальных переменных.
 
-export function saveLang(lang) {
-  localStorage.setItem(STORAGE_KEY, lang);
-}
-``` 
+### Что важно в решении
 
-### Переводы как JS-модули
-
-**js/i18n/ru.js**
-
-```javascript
-export default {
-  app_title: "Мой сайт на модулях",
-  main_title: "Добро пожаловать!",
-  main_text: "Это пример одностраничного сайта с модулями и переводами.",
-  footer_text: "Все права защищены"
-};
-```
-
-**js/i18n/en.js**
-
-```javascript
-export default {
-  app_title: "My Modular Site",
-  main_title: "Welcome!",
-  main_text: "This is an example of a single-page site with modules and translations.",
-  footer_text: "All rights reserved"
-};
-```
-
-**js/i18n/cs.js**
-
-```javascript
-export default {
-  app_title: "Můj modulární web",
-  main_title: "Vítejte!",
-  main_text: "Toto je příklad jednostránkového webu s moduly a překlady.",
-  footer_text: "Všechna práva vyhrazena"
-};
-```
-
-**js/i18n/index.js**
-
-Здесь мы объединяем все словари в один объект и делаем простую функцию `t(key)`, которая возвращает перевод по текущему языку.
-
-```javascript
-import ru from "./ru.js";
-import en from "./en.js";
-import cs from "./cs.js";
-
-import { getSavedLang } from "../services/langStorage.js";
-
-const translations = { ru, en, cs };
-
-export function getCurrentLang() {
-  return getSavedLang("ru");
-}
-
-export function t(key) {
-  const lang = getCurrentLang();
-  return translations[lang]?.[key] ?? `[[${key}]]`;
-}
-```
-
-### Компоненты
-
-**js/components/header.js**
-
-```javascript
-import { t, getCurrentLang } from "../i18n/index.js";
-
-export function Header() {
-  const lang = getCurrentLang();
-
-  return `
-    <header class="header">
-      <h1>${t("app_title")}</h1>
-
-      <div class="langs">
-        <button class="langs__btn" data-lang="ru" ${lang === "ru" ? "data-active='1'" : ""}>RU</button>
-        <button class="langs__btn" data-lang="en" ${lang === "en" ? "data-active='1'" : ""}>EN</button>
-        <button class="langs__btn" data-lang="cs" ${lang === "cs" ? "data-active='1'" : ""}>CS</button>
-      </div>
-    </header>
-  `;
-}
-```
-
-**js/components/main.js**
-
-```javascript
-import { t } from "../i18n/index.js";
-
-export function Main() {
-  return `
-    <main class="main">
-      <h2>${t("main_title")}</h2>
-      <p>${t("main_text")}</p>
-    </main>
-  `;
-}
-```
-
-**js/components/footer.js**
-
-```javascript
-import { t } from "../i18n/index.js";
-
-export function Footer() {
-  const year = new Date().getFullYear();
-
-  return `
-    <footer class="footer">
-      <p>© ${year} - ${t("footer_text")}</p>
-    </footer>
-  `;
-}
-```
-
-### Сборка приложения
-
-**js/app.js**
-
-```javascript
-import { Header } from "./components/header.js";
-import { Main } from "./components/main.js";
-import { Footer } from "./components/footer.js";
-
-export function App() {
-  return `
-    ${Header()}
-    ${Main()}
-    ${Footer()}
-  `;
-}
-```
-
-**js/render.js**
-
-```javascript
-import { App } from "./app.js";
-
-export function renderApp(root) {
-  root.innerHTML = App();
-}
-```
-
-### Обработчики кликов
-
-**js/handlers/lang.js**
-Здесь логика очень простая:
-- пользователь нажал кнопку языка;
-- мы сохранили язык в `localStorage`;
-- перерисовали интерфейс
-
-```javascript
-import { saveLang } from "../services/langStorage.js";
-import { renderApp } from "../render.js";
-
-export function initLangHandlers(root) {
-  root.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-lang]");
-    if (!btn) return;
-
-    const lang = btn.dataset.lang;
-    if (lang !== "ru" && lang !== "en" && lang !== "cs") return;
-
-    saveLang(lang);
-    renderApp(root);
-  });
-}
-```
-
-### Точка входа
-**js/main.js**
-
-`main.js` делает две вещи:
-- рендерит приложение в `#root`;
-- подключает обработчики кликов.
-
-```javascript
-import { renderApp } from "./render.js";
-import { initLangHandlers } from "./handlers/lang.js";
-
-const root = document.getElementById("root");
-
-renderApp(root);
-initLangHandlers(root);
-```
-
-### Что важно увидеть в этом примере
-
-- Компоненты лежат в `components/` и отвечают только за `UI`.
-- Обработчики лежат в `handlers/` и отвечают только за события.
-- Переводы лежат в `i18n/` как обычные `JS`-модули.
-- `LocalStorage` вынесен в `services/langStorage.js`.
-- `main.js` - точка входа: минимум логики, только запуск приложения.
+1. Каждая папка отвечает за понятную роль.
+2. Названия файлов отражают назначение.
+3. Любой модуль можно открыть отдельно и быстро понять, за что он отвечает.
 
 ## Заключение
 
