@@ -2,46 +2,57 @@
 
 ![](./images/DOM.png)
 
-## Вступление
+## Цели лекции
 
-До этого момента мы в основном работали с самим языком: переменными, условиями, циклами, функциями, массивами и объектами.  
-Это фундамент, но пока такой код живёт в основном в переменных, вычислениях и `console.log`.
+После этой лекции вы сможете:
 
-Следующий логичный шаг - научиться связывать JavaScript с интерфейсом, который видит пользователь.
+- объяснить, что такое DOM;
+- правильно подключить JavaScript к HTML;
+- найти один или несколько элементов;
+- безопасно изменить текст элемента;
+- работать с атрибутами, `dataset` и CSS-классами;
+- создавать, вставлять, удалять и заменять DOM-элементы;
+- создавать карточку интерфейса из объекта;
+- отрисовывать массив объектов;
+- показывать пустое состояние;
+- выполнять повторный рендер без дублирования;
+- объяснить риски использования `innerHTML`.
 
-В браузере JavaScript может не только считать и хранить данные - он может **управлять страницей**:
-- находить элементы,
-- менять текст и разметку,
-- добавлять классы,
-- создавать новые блоки и вставлять их в документ.
+До этой лекции наш код в основном работал с данными:
 
-Именно эту связь между HTML и JavaScript и даёт **DOM**.
+```text
+данные -> обработка -> console.log
+```
 
-## Что такое DOM и как браузер его строит
+Теперь мы добавляем интерфейс:
+
+```text
+данные -> обработка -	 -> страница
+```
+
+Главная мысль лекции:
+
+> DOM является отображением данных. Когда данные изменяются, интерфейс нужно обновить предсказуемым способом.
+
+## Что такое DOM
 
 ![](./images/DOM-Structure.png)
 
-`DOM (Document Object Model)` - это объектная модель документа.  
-То есть браузер берёт ваш HTML и превращает его **в дерево объектов**, с которыми можно работать из JavaScript.
+DOM расшифровывается как Document Object Model. Браузер читает HTML и создает из него дерево объектов в памяти.
 
-**Важно:** `DOM` - это **не строка HTML** и не “файл”, который лежит где-то отдельно.  
-DOM - это **живая структура в памяти браузера**. Вы меняете DOM - вы меняете то, что видит пользователь на странице.
-
-### Как из HTML появляется DOM-дерево
-
-Допустим, у нас есть такой HTML:
+Исходный HTML:
 
 ```html
 <body>
-  <h1>Shop</h1>
+  <h1>Course schedule</h1>
   <ul>
-    <li>Milk</li>
-    <li>Bread</li>
+    <li>JavaScript</li>
+    <li>CSS</li>
   </ul>
 </body>
 ```
 
-Браузер превратит это в дерево:
+Упрощенное DOM-дерево:
 
 ```text
 Document
@@ -52,1480 +63,1371 @@ Document
         └── li
 ```
 
-То есть каждый тег становится узлом (`node`), и внутри узлов строится иерархия *“родитель → дети”*.
+HTML-файл и DOM связаны, но это не одно и то же:
 
+- HTML является исходной разметкой;
+- DOM является живой структурой в памяти браузера;
+- JavaScript изменяет DOM;
+- пользователь сразу видит изменения.
 
-### Какие бывают узлы в DOM
+### Основные типы узлов
 
-В DOM есть разные типы узлов:
-- **Element** - это узел, который соответствует HTML-тегу. Например, `<h1>`, `<ul>`, `<li>`.
-- **Text** - это узел, который содержит текст внутри элемента. Например, в `<h1>Shop</h1>` текстовый узел - это “Shop”.
-- **Comment** - это узел, который соответствует HTML-комментарию. Например, `<!-- This is a comment -->`.
+Для начала достаточно знать три типа:
 
-На практике чаще всего мы работаем с элементами (`Element`), потому что именно они позволяют нам менять структуру страницы и её внешний вид.
+- `Document` - весь документ;
+- `Element` - HTML-элемент, например `<h1>` или `<li>`;
+- `Text` - текст внутри элемента.
 
-### Главный вход в DOM - `document`
-
-В JavaScript у нас есть глобальный объект `document`, который является **главным входом в DOM**. Через `document` мы можем находить элементы, создавать новые узлы и управлять всем деревом.
-
-Простейшие примеры:
+Главный вход в DOM - глобальный объект `document`:
 
 ```javascript
-console.log(document); // Показывает весь DOM
-console.log(document.body); // Показывает элемент <body>
-console.log(document.body.children); // Показывает коллекцию дочерних элементов <body>
+console.log(document);
+console.log(document.body);
+console.log(document.body.children);
 ```
 
-## Момент выполнения скрипта и доступность элементов
+## Когда выполняется JavaScript
 
-**DOM** - это структура, которую браузер строит из `HTML`. И важный момент: **DOM появляется не мгновенно**. Браузер читает HTML сверху вниз. Если JavaScript выполнится слишком рано - нужных элементов ещё не будет в `DOM`. И тогда любая попытка *“достать элемент и поменять его”* заканчивается тем, что мы работаем с `null`.
+Браузер читает HTML сверху вниз. Если JavaScript запустится раньше, чем нужный элемент будет создан, поиск вернет `null`.
 
-### Почему порядок загрузки важен
-
-Рассмотрим на примере такой структуры:
+Проблемный вариант:
 
 ```html
 <head>
-  <script src="index.js"></script>
+  <script src="./index.js"></script>
 </head>
+
 <body>
-  <h1>Shop</h1>
+  <h1 id="title">Course schedule</h1>
 </body>
 ```
 
-Здесь скрипт подключён в `<head>`, то есть он выполняется **до того, как браузер построит DOM-дерево для `<body>`**. Поэтому если в `index.js` мы попробуем обратиться к `<h1>`, мы получим `null`, потому что его ещё нет.
+В момент выполнения скрипта `<h1>` еще может отсутствовать в DOM.
 
-### Самый простой способ: подключать скрипт в конце body
+### Подключение в конце `body`
 
-```javascript
+```html
 <body>
-  <h1>Shop</h1>
+  <h1 id="title">Course schedule</h1>
 
-  <script src="index.js"></script>
+  <script src="./index.js"></script>
 </body>
 ```
 
-Теперь браузер сначала построит все элементы страницы, а потом выполнит JavaScript. То есть `DOM` уже готов, и с ним можно работать.
-
-### Современный способ: атрибут `defer`
-
-Подключать скрипт внизу удобно, но не всегда. Поэтому в реальных проектах чаще используют `defer`:
+### Подключение через `defer`
 
 ```html
 <head>
-  <script src="index.js" defer></script>
+  <script src="./index.js" defer></script>
 </head>
 ```
 
-`defer` означает:
-- скрипт скачивается параллельно с `HTML`,
-- но выполняется только после того, как `DOM` построен.
+`defer` позволяет загружать скрипт параллельно с HTML, но выполнить его после разбора документа.
 
-Это один из самых безопасных вариантов подключения.
+В этой лекции будем использовать `defer`.
 
-## Поиск элементов в DOM
+## Поиск элементов
 
 ![](./images/search_in_dom.jpeg)
 
-Чтобы управлять страницей, нам сначала нужно получить ссылку на элемент из `DOM`. То есть найти его в дереве и сохранить в переменную. В `JavaScript` для этого есть разные способы. Мы начнём с самых популярных.
+Чтобы изменить элемент, сначала нужно получить ссылку на него.
 
----
+Основные методы:
 
-### `getElementById` - поиск по id
+```javascript
+document.querySelector(selector);
+document.querySelectorAll(selector);
+document.getElementById(id);
+```
 
-Самый простой и быстрый способ найти элемент - по `id`.
+### `querySelector`
 
-Давайте добавим `id` к нашему заголовку:
+`querySelector` принимает CSS-селектор и возвращает первый подходящий элемент или `null`:
 
 ```html
-<body>
-  <h1 id="main-title">Shop</h1>
-</body>
+<h1 id="title">Course schedule</h1>
+<p class="description">Upcoming events</p>
 ```
-
-Теперь в JavaScript мы можем найти этот элемент так:
 
 ```javascript
-const title = document.getElementById('main-title');
-console.log(title); // Покажет элемент <h1 id="main-title">Shop</h1>
-console.log(title.textContent); // Покажет текст "Shop"
+const title = document.querySelector("#title");
+const description = document.querySelector(".description");
+const firstParagraph = document.querySelector("p");
 ```
 
-`id` на странице должен быть **уникальным**, то есть не должно быть двух элементов с одинаковым `id`. Поэтому `getElementById` всегда возвращает **один элемент** или `null`, если такого `id` нет.
+Можно использовать знакомые CSS-селекторы:
 
+```javascript
+document.querySelector("header h1");
+document.querySelector("[data-event-id]");
+document.querySelector(".card.is-active");
+```
 
-### `querySelector` - поиск по CSS-селектору
+### `querySelectorAll`
 
-`querySelector` - это более универсальный способ найти элемент. Он позволяет использовать **CSS-селекторы** для поиска.
-
-Например, если у нас есть такой HTML:
+`querySelectorAll` возвращает статический `NodeList` со всеми найденными элементами:
 
 ```html
-<div class="card"></div>
-<div class="card"></div>
-```
-
-Мы можем найти первый элемент с классом `card` так:
-
-```javascript
-const card = document.querySelector('.card');
-console.log(card); // Покажет первый элемент <div class="card"></div>
-```
-
-`querySelector` возвращает **первый элемент**, который соответствует селектору, или `null`, если такого элемента нет.
-
-Вы можете искать так же, как в CSS:
-
-```javascript
-document.querySelector("h1");          // по тегу
-document.querySelector(".menu-item");  // по классу
-document.querySelector("#title");      // по id
-document.querySelector("ul li");       // вложенность
-```
-
-**Важно**: `querySelector` всегда возвращает только один элемент (первый подходящий).
-
-
-### `querySelectorAll` - поиск всех элементов по селектору
-
-Если нам нужно найти **все элементы**, которые соответствуют селектору, мы используем `querySelectorAll`:
-
-```html
-<li class="item">Milk</li>
-<li class="item">Bread</li>
-<li class="item">Eggs</li>
+<li class="topic">JavaScript</li>
+<li class="topic">CSS</li>
+<li class="topic">HTML</li>
 ```
 
 ```javascript
-const items = document.querySelectorAll('.item');
-console.log(items); // Покажет NodeList из всех элементов с классом "item"
-console.log(items.length); // Покажет количество найденных элементов (3)
-```
+const topics = document.querySelectorAll(".topic");
 
-`querySelectorAll` возвращает **NodeList** - это коллекция, которая похожа на массив, но не совсем. Она содержит все элементы, которые соответствуют селектору. Поэтому мы не можем делать так:
+console.log(topics.length); // 3
 
-```javascript
-const items = document.querySelectorAll('.item');
-items.textContent = "New Text"; // Это не сработает, потому что items - это коллекция, а не один элемент
-```
-
-Вместо этого, если мы хотим изменить текст всех элементов, нам нужно пройтись по коллекции:
-
-```javascript
-const items = document.querySelectorAll('.item');
-items.forEach(item => {
-  item.textContent = "New Text";
+topics.forEach((topic) => {
+  console.log(topic.textContent);
 });
 ```
 
-Так же можно использовать цикл `for`:
+Если ничего не найдено, результатом будет пустой `NodeList`:
 
 ```javascript
-const items = document.querySelectorAll('.item');
-for (let i = 0; i < items.length; i++) {
-  items[i].textContent = "New Text";
+const missingItems = document.querySelectorAll(".missing");
+
+console.log(missingItems.length); // 0
+```
+
+`NodeList` похож на массив, но не является полноценным массивом. Если нужны методы массивов, можно создать массив:
+
+```javascript
+const topicsArray = [...topics];
+```
+
+### `getElementById`
+
+`getElementById` ищет элемент по уникальному `id`:
+
+```javascript
+const title = document.getElementById("title");
+```
+
+Он возвращает элемент или `null`.
+
+### Старые методы поиска
+
+В существующем коде можно встретить:
+
+```javascript
+document.getElementsByClassName("card");
+document.getElementsByTagName("li");
+```
+
+Они возвращают живую `HTMLCollection`, которая автоматически обновляется при изменении DOM. Эти методы продолжают работать, но в новом коде обычно удобнее использовать `querySelector` и `querySelectorAll`.
+
+## Проверка результата поиска
+
+Если обязательный элемент не найден, дальнейший код не сможет работать:
+
+```javascript
+const container = document.querySelector("#event-list");
+
+if (!container) {
+  throw new Error("Container #event-list not found");
 }
 ```
 
-### `getElementsByClassName` и `getElementsByTagName` - старые методы поиска
-
-Раньше, до появления `querySelector`, были другие методы для поиска элементов:
-- `getElementsByClassName` - возвращает коллекцию всех элементов с заданным классом.
-- `getElementsByTagName` - возвращает коллекцию всех элементов с заданным тегом.
-
-Например:
-
-```html
-<div class="card"></div>
-<div class="card"></div>
-```
-```javascript
-const cards = document.getElementsByClassName('card');
-console.log(cards); // Покажет HTMLCollection из всех элементов с классом "card"
-const divs = document.getElementsByTagName('div');
-console.log(divs); // Покажет HTMLCollection из всех элементов <div> 
-```
-
-Эти методы возвращают **HTMLCollection** - это тоже коллекция, похожая на массив, но не совсем. Она обновляется автоматически при изменении DOM. Поэтому если мы добавим новый элемент с классом `card`, он сразу появится в `cards`:
-
-```javascript
-const cards = document.getElementsByClassName('card');
-console.log(cards.length); // Покажет 2
-```
-
-```html
-<div class="card"></div>
-<div class="card"></div>
-<div class="card"></div> <!-- Новый элемент -->
-```
-
-```javascript
-console.log(cards.length); // Теперь покажет 3, потому что коллекция обновилась
-```
-
-Важно: эти методы **не удалены** и продолжают работать. Просто в современных проектах чаще используют `querySelector` и `querySelectorAll`, потому что они более гибкие и поддерживают сложные селекторы.
-
-### `NodeList` vs `HTMLCollection`: в чём практическая разница
-
-Когда вы пишете `querySelectorAll`, вы получаете `NodeList` (статический список).  
-Когда пишете `getElementsByClassName` / `getElementsByTagName`, вы получаете `HTMLCollection` (живую коллекцию).
-
-- **NodeList (статический)**: не обновляется сам после изменений DOM.
-- **HTMLCollection (живая)**: обновляется автоматически, если DOM изменился.
-
-Пример:
-
-```html
-<ul id="list">
-  <li class="item">Milk</li>
-  <li class="item">Bread</li>
-</ul>
-```
-
-```javascript
-const staticItems = document.querySelectorAll(".item"); // NodeList
-const liveItems = document.getElementsByClassName("item"); // HTMLCollection
-const list = document.getElementById("list");
-
-console.log(staticItems.length); // 2
-console.log(liveItems.length); // 2
-
-list.insertAdjacentHTML("beforeend", '<li class="item">Eggs</li>');
-
-console.log(staticItems.length); // 2 (не изменился)
-console.log(liveItems.length); // 3 (обновился автоматически)
-```
-
-**Мини-правило:** для большинства задач новичкам проще использовать `querySelectorAll`, потому что поведение у него более предсказуемое.
-
-
-### Проверка наличия элемента в DOM
-
-Если селектор неправильный или элемента нет на странице, то `querySelector` вернёт `null`, а `querySelectorAll` - пустой `NodeList`. Поэтому всегда полезно проверять результат перед тем, как работать с элементом:
-
-```javascript
-const title = document.querySelector('#main-title');
-if (title) {
-  console.log(title.textContent); // Покажет текст, если элемент найден
-}
-
-
-const items = document.querySelectorAll('.item');
-if (items.length > 0) {
-  items.forEach(item => {
-    console.log(item.textContent); // Покажет текст всех найденных элементов
-  });
-}
-```
-
-### Мини правило по поиску элементов в DOM:
-- Если есть один элемент с **уникальным** `id` - используйте `getElementById`.
-- Если нужно найти **один элемент** - используйте `querySelector` с подходящим селектором.
-- Если нужно найти **все элементы** - используйте `querySelectorAll` и потом работайте с коллекцией.
-- Если элемент не найден - всегда проверяйте результат, чтобы избежать ошибок при работе с `null` или пустой коллекцией.
-
-### Навигация по DOM: как двигаться от найденного элемента
-
-Поиск селектором - это только половина работы. Часто вы нашли один элемент и хотите перейти к соседу, родителю или вложенному узлу.
-
-Для этого используют навигационные свойства:
-
-- `parentElement` - родительский элемент
-- `children` - дочерние элементы
-- `nextElementSibling` - следующий соседний элемент
-- `previousElementSibling` - предыдущий соседний элемент
-- `closest(selector)` - ближайший родитель (или сам элемент), который подходит под селектор
-
-Пример:
-
-```html
-<ul id="products">
-  <li class="item" data-id="1">Milk</li>
-  <li class="item is-active" data-id="2">Bread</li>
-  <li class="item" data-id="3">Eggs</li>
-</ul>
-```
-
-```javascript
-const activeItem = document.querySelector(".item.is-active");
-
-console.log(activeItem.parentElement.id); // "products"
-console.log(activeItem.previousElementSibling?.dataset.id); // "1"
-console.log(activeItem.nextElementSibling?.dataset.id); // "3"
-console.log(activeItem.closest("#products")); // <ul id="products">...</ul>
-```
-
-## Изменение содержимого: `textContent` и `innerHTML`
-
-![](./images/innerText-vs-innerHTML.webp)
-
-Мы нашли элемент, теперь хотим изменить его содержимое. Для этого есть два основных способа: `textContent` и `innerHTML`.
-
-Давайте разбираться в чем разница.
-
-### `textContent` - изменение текста
-
-`textContent` - это свойство, которое позволяет получить или установить **текстовое содержимое** элемента. Если внутри строки будет `<b>...</b>`, браузер не превратит это в тег - он покажет это как текст.
-
-```html
-<h1 id="main-title">Shop</h1>
-```
-
-```javascript
-const title = document.getElementById('main-title');
-console.log(title.textContent); // Покажет "Shop"
-title.textContent = "New Shop"; // Изменит текст на "New Shop"
-console.log(title.textContent); // Покажет "New Shop"
-```
-
-Если мы сделаем так:
-
-```javascript
-title.textContent = "<b>New Shop</b>";
-```
-То на странице будет отображаться именно `<b>New Shop</b>`, а не жирный текст. Это безопасный способ изменить текст, потому что он не позволяет вставить HTML-код.
-
-### `innerText` vs `textContent`: важная разница
-
-В браузере есть ещё одно похожее свойство - `innerText`.  
-На старте чаще используют `textContent`, но разницу знать обязательно.
-
-- `textContent` - работает с “сырым” текстом узла (включая скрытый текст).
-- `innerText` - возвращает только текст, который реально виден пользователю на странице.
-
-Пример:
-
-```html
-<p id="msg">Hello <span style="display: none">hidden</span> world</p>
-```
-
-```javascript
-const msg = document.getElementById("msg");
-
-console.log(msg.textContent); // "Hello hidden world"
-console.log(msg.innerText); // "Hello world"
-```
-
-**Мини-правило:** если нужно просто читать/писать текст в DOM-узле - используйте `textContent`. `innerText` оставляйте для задач, где важен именно “видимый” текст.
-
-### `innerHTML` - изменение разметки
-
-`innerHTML` - это свойство, которое позволяет получить или установить **HTML-содержимое** элемента. Если внутри строки будет `<b>...</b>`, браузер превратит это в тег и отобразит жирный текст.
-
-```html
-<h1 id="main-title">Shop</h1>
-```
-
-```javascript
-const title = document.getElementById('main-title');
-console.log(title.innerHTML); // Покажет "Shop"
-title.innerHTML = "<b>New Shop</b>"; // Изменит текст на "New Shop" и сделает его жирным
-console.log(title.innerHTML); // Покажет "<b>New Shop</b>"
-```
-
-На странице будет отображаться **New Shop** жирным шрифтом, потому что браузер интерпретирует строку как HTML.
-
-### Когда использовать `textContent`, а когда `innerHTML`
-- Если вам нужно просто изменить текст и не вставлять HTML - используйте `textContent`. Это безопаснее, потому что он не позволяет вставить вредоносный код.
-- Если вам нужно вставить HTML-разметку - используйте `innerHTML`. Но будьте осторожны, потому что если строка содержит пользовательский ввод, это может привести к уязвимостям типа XSS (Cross-Site Scripting).
-
-### Важный момент про `innerHTML`
-
-`innerHTML` перезаписывает содержимое целиком.
-
-```javascript
-const box = document.querySelector(".box");
-
-box.innerHTML = "<p>One</p>";
-box.innerHTML = "<p>Two</p>";
-```
-
-В итоге останется только `Two`, потому что второй вызов полностью заменил первый.
-
-Если хотите добавлять, а не заменять - либо конкатенация:
-
-```javascript
-box.innerHTML += "<p>Two</p>"; // Добавит "Two" после "One"
-```
-Либо использовать другие методы для создания и вставки элементов, о которых мы поговорим позже.
-
-## Атрибуты, data-атрибуты, классы и стили
-
-Мы уже умеем находить элементы и менять текст/разметку. Следующий уровень - управлять тем, *как элемент выглядит и как он “настроен”*:
-
-- атрибуты (`src`, `href`, `type`, `disabled`…)
-- `data-*` атрибуты (данные прямо в HTML)
-- классы (`classList`)
-- inline-стили (`style`)
-
----
-
-## Атрибуты и `data-*`: как “передавать данные” из HTML в JavaScript (и обратно)
-
-С DOM есть одна важная идея:
-
-**HTML - это разметка. JavaScript - это логика.** Но иногда им нужно “договориться” и обменяться данными.
-
-И самый простой способ - **атрибуты**.
-
-- обычные атрибуты (`id`, `href`, `src`, `type`) описывают поведение/настройки элемента
-- `data-*` атрибуты - это **наши собственные данные**, которые мы добавляем для JavaScript
-
----
-
-### Зачем вообще нужны атрибуты, если есть переменные в JS?
-
-Потому что переменные живут в коде, а DOM - это то, что реально находится на странице.
-
-Атрибуты дают нам **привязку данных к конкретному элементу**.
-
-Например:
-- у кнопки есть язык `data-lang="en"`
-- у карточки есть `data-id="12"`
-- у блока переводов есть `data-i18n="title"`
-
-То есть элемент сам “несёт” информацию, и JavaScript может её считать.
-
----
-
-### Базовые методы работы с атрибутами
-
-Кроме `dataset`, вам часто нужны обычные операции с атрибутами:
-
-- `getAttribute(name)` - получить значение
-- `setAttribute(name, value)` - установить/изменить
-- `hasAttribute(name)` - проверить наличие
-- `removeAttribute(name)` - удалить атрибут
-
-Пример:
-
-```html
-<a id="site-link" href="https://example.com" target="_blank">Open site</a>
-```
-
-```javascript
-const link = document.getElementById("site-link");
-
-console.log(link.getAttribute("href")); // "https://example.com"
-console.log(link.hasAttribute("target")); // true
-
-link.setAttribute("href", "https://developer.mozilla.org");
-link.setAttribute("rel", "noopener noreferrer");
-
-link.removeAttribute("target");
-console.log(link.hasAttribute("target")); // false
-```
-
-Для булевых атрибутов (например, `disabled`, `checked`) тоже работает простая логика:
-
-```javascript
-const input = document.querySelector("input[type='text']");
-input.setAttribute("disabled", "");
-input.removeAttribute("disabled");
-```
-
-### Пример: переключатель языка через `data-lang`
-
-Разметка:
-
-```html
-<button class="lang-btn" data-lang="en">EN</button>
-<button class="lang-btn" data-lang="uk">UK</button>
-<button class="lang-btn" data-lang="cs">CS</button>
-```
-
-JavaScript (пока без событий - просто идея):
-
-```javascript
-const buttons = document.querySelectorAll(".lang-btn");
-
-buttons.forEach(btn => {
-  console.log(btn.dataset.lang); // "en", "uk", "cs"
-});
-```
-Здесь `data-lang` - это чистые данные, которые мы положили в `HTML`, чтобы JS мог их достать.
-
-
-### data-* и dataset - это способ хранить свои данные прямо в разметке.
-
-`data-*` атрибуты читаются через `dataset`.
-
-```html
-<div class="box" data-lang="en" data-theme="dark"></div>
-```
-
-```javascript
-const box = document.querySelector('.box');
-console.log(box.dataset.lang); // "en"
-console.log(box.dataset.theme); // "dark"
-```
-
-**Важно:** `dataset` - это объект, который содержит все `data-*` атрибуты элемента. Имена атрибутов в `dataset` преобразуются из `kebab-case` в `camelCase`.
-
-Например, `data-user-id` будет доступен как `dataset.userId`.
-
-Вы можете не только читать `dataset`, но и записывать:
-
-```javascript
-const box = document.querySelector(".box");
-
-box.dataset.lang = "ru"; // станет data-lang="ru"
-box.dataset.userId = "42"; // станет data-user-id="42"
-
-console.log(box.getAttribute("data-user-id")); // "42"
-```
-
-#### Переводы с помощью `data-i18n`
-
-Когда проект становится большим, тексты уже нельзя хранить “как попало”. Обычно делают так:
-
-1. В HTML ставят ключ, что именно нужно перевести
-2. В JS есть словарь переводов
-3. JS находит элементы с ключами и подставляет текст
-
-Пример небольшой страницы:
-
-```html
-<h1 data-i18n="title"></h1>
-<p data-i18n="subtitle"></p>
-<button data-i18n="buy"></button>
-```
-
-Словарь переводов:
-
-```javascript
-const translations = {
-  en: {
-    title: "Welcome to our shop",
-    subtitle: "We have the best products",
-    buy: "Buy Now"
-  },
-  ru: {
-    title: "Добро пожаловать в наш магазин",
-    subtitle: "У нас лучшие товары",
-    buy: "Купить"
-  }
-};
-```
-
-Теперь главное: DOM содержит ключи, а JS подставляет значения.
-
-```javascript
-const lang = 'ru'; // допустим, выбрали русский
-const elements = document.querySelectorAll('[data-i18n]');
-elements.forEach(el => {
-  const key = el.dataset.i18n; // получаем ключ из data-i18n - "title", "subtitle", "buy"
-  el.textContent = translations[lang][key]; // подставляем перевод
-});
-```
-
-Такой подход позволяет легко управлять переводами и поддерживать много языков, просто расширяя словарь. И при этом HTML остаётся чистым и понятным. 
-
-> Главное не запутаться в ключах. По-хорошему, ключи должны быть логичными и отражать смысл текста, который они представляют. Ключи могут повторяться на разных элементах, потому что они описывают **тип текста**, а не конкретный элемент. Например, `data-i18n="title"` может быть у заголовка на главной странице и у заголовка в карточке товара - это нормально, потому что оба элемента отображают **заголовок**.
-
-### Классы: Почему чаще меняют классы, а не стили
-
-Когда мы хотим изменить внешний вид элемента, у нас есть два пути:
-1. Изменить **стили** напрямую через `style`
-2. Изменить **классы** элемента, а стили прописать в CSS
-
-Оба способа работают. Но в реальных проектах почти всегда стараются менять классы, потому что так код получается чище и управляемее.
-
-#### Вариант 1: меняем стили напрямую (style)
-
-Это самый **“быстрый”** путь: прямо из `JavaScript` задаём `CSS`-свойства.
-
-```html
-<button id="buy-btn">Buy</button>
-```
-
-```javascript
-const btn = document.getElementById('buy-btn');
-
-btn.style.backgroundColor = "black";
-btn.style.color = "white";
-btn.style.padding = "12px 20px";
-btn.style.borderRadius = "8px";
-```
-
-Это работает, но проблема видна сразу: стили расползаются в JS. Если нам нужно изменить внешний вид кнопки, мы должны прописать все стили прямо в коде. Это не только неудобно, но и нарушает принцип разделения ответственности: стили должны быть в `CSS`, а логика - в JS. При дальнейшем развитии проекта такой код становится трудно поддерживать и масштабировать.
-
-
-#### Вариант 2: меняем классы (classList) и оформляем в CSS
-
-Правильная идея - создать в `CSS` класс, который описывает нужный стиль, а в `JavaScript` просто добавлять или удалять этот класс.
-
-```html
-<button id="buy-btn">Buy</button>
-```
-
-```css
-.btn {
-  padding: 12px 20px;
-  border-radius: 8px;
-}
-
-.btn--primary {
-  background: black;
-  color: white;
-}
-```
-
-```javascript
-const btn = document.getElementById('buy-btn');
-btn.classList.add('btn', 'btn--primary');
-```
-
-Теперь все стили описаны в `CSS`, и если нам нужно изменить внешний вид кнопки, мы просто правим `CSS`, не трогая `JavaScript`. Это делает код более чистым, понятным и поддерживаемым.
-
-#### classList: Основные методы
-
-`classList` - это специальный объект, который позволяет управлять классами элемента. Вот его основные методы:
-
-**1. add(className)** - добавляет класс к элементу
-
-```javascript
-btn.classList.add('btn--primary'); // Добавит класс "btn--primary"
-```
-**2. remove(className)** - удаляет класс из элемента
-
-```javascript
-btn.classList.remove('btn--primary'); // Удалит класс "btn--primary"
-```
-
-**3. toggle(className)** - если класса нет - добавляет, если есть - удаляет
-
-```javascript
-btn.classList.toggle('btn--primary'); // Если класса нет - добавит, если есть - удалит
-```
-
-**4. contains(className)** - проверяет, есть ли класс у элемента
-
-```javascript
-console.log(btn.classList.contains("btn--primary")); // true/false
-```
-
-**5. replace(oldClass, newClass)** - заменяет один класс на другой
-
-```javascript
-btn.classList.replace('btn--primary', 'btn--secondary'); // Заменит "btn--primary" на "btn--secondary"
-```
-
-Использование `classList` - это лучший способ управлять классами элемента, потому что он обеспечивает удобный и безопасный интерфейс для добавления, удаления и проверки классов. Это помогает поддерживать чистоту кода и разделение ответственности между стилями и логикой.
-
-**Вывод**
-
-В DOM-логике мы обычно делаем так:
-
-- классы = состояния интерфейса (`is-active`, `is-hidden`, `is-error`, `is-loading`)
-- `CSS` описывает, как выглядит каждое состояние
-- `JS` только включает/выключает классы, не размазывая стили по коду
-
----
-## Создание и добавление элементов
-
-До этого момента мы только находили существующие элементы и меняли их. Но что если нам нужно создать новый элемент и добавить его на страницу? Для этого в DOM есть специальные методы.
-
-Часто нам нужно создавать новый блок, список товаров или пользователей на основе данных, которые приходят с сервера. И для этого мы можем динамически создавать элементы и вставлять их в `DOM`.
-
-### Главная идея
-
-Элемент можно создать в памяти, настроить, и только потом вставить в DOM. То есть сначала он существует как объект в JS, но его ещё не видно пользователю. И только когда мы его вставляем в DOM, он появляется на странице.
-
-**Шаг 1: document.createElement()**
-
-```javascript
-const p = document.createElement("p");
-console.log(p); // <p></p>
-```
-
-Сейчас `<p>` - это просто объект в памяти, он ещё не на странице. Мы можем настроить его, например, добавить текст:
-
-**Шаг 2: Настраиваем элемент**
-
-Обычно настраивают элемент, добавляя текст, классы, атрибуты:
-
-```javascript
-const p = document.createElement("p");
-
-p.textContent = "Hello from JS";
-p.classList.add("message");
-p.dataset.type = "info";
-
-console.log(p);
-// <p class="message" data-type="info">Hello from JS</p>
-```
-
-**Шаг 3: Вставляем элемент в DOM**
-
-Теперь, когда элемент готов, мы можем вставить его в нужное место на странице. Для этого есть разные методы:
-
-- `append` - добавляет элемент в конец родителя
-- `prepend` - добавляет элемент в начало родителя
-- `before` - вставляет элемент перед другим элементом
-- `after` - вставляет элемент после другого элемента
-- `insertBefore` - вставляет элемент перед указанным дочерним элементом
-
-Но для этого нам нужен родительский элемент, в который мы будем вставлять новый элемент. Например:
-
-```html
-<div id="container"></div>
-```
-
-Теперь можно вставить новый элемент в этот контейнер:
-
-```javascript
-const container = document.getElementById("container");
-
-const p = document.createElement("p");
-p.textContent = "Hello from JS";
-
-container.append(p);   // в конец контейнера
-```
-
-В итоге на странице появится:
-
-```html
-<div id="container">
-  <p>Hello from JS</p>
-</div>
-```
-
-Такой способ создания и добавления элементов позволяет нам динамически строить интерфейс на основе данных, которые приходят с сервера, или в ответ на действия пользователя. Мы можем создавать сложные структуры, настраивать их и вставлять в нужное место на странице, не трогая остальной код.
-
-
-**Важно:** мы не можем вставить элемент, который уже находится в DOM, в другое место. Если мы попытаемся это сделать, элемент просто переместится, а не создастся новый. Поэтому если нам нужно создать несколько похожих элементов, мы должны вызывать `createElement` для каждого из них.
-
-```javascript
-const p = document.createElement("p");
-p.textContent = "Move me";
-
-container1.append(p);
-container2.append(p); // теперь элемент будет только в container2
-```
-
-**Примеры создания и добавления нескольких элементов:**
-
-```javascript
-const container = document.getElementById("container");
-for (let i = 1; i <= 3; i++) {
-  const p = document.createElement("p");
-  p.textContent = `Paragraph ${i}`;
-  container.append(p);
-}
-```
-В итоге на странице будет:
-
-```html
-<div id="container">
-  <p>Paragraph 1</p>
-  <p>Paragraph 2</p>
-  <p>Paragraph 3</p>
-</div>
-```
-
-**Примеры разных методов вставки:**
-
-```javascript
-const container = document.getElementById("container");
-const p1 = document.createElement("p");
-p1.textContent = "First Paragraph";
-container.prepend(p1); // Вставляет в начало контейнера
-const p2 = document.createElement("p");
-p2.textContent = "Second Paragraph";
-container.append(p2); // Вставляет в конец контейнера
-const p3 = document.createElement("p");
-p3.textContent = "Inserted Before";
-p2.before(p3); // Вставляет перед p2
-const p4 = document.createElement("p");
-p4.textContent = "Inserted After";
-p1.after(p4); // Вставляет после p1
-```
-
-В итоге на странице будет:
-
-```html
-<div id="container">
-  <p>First Paragraph</p>
-  <p>Inserted After</p>
-  <p>Inserted Before</p>
-  <p>Second Paragraph</p>
-</div>
-```
-
-
-### Паттерн: “создать → настроить → вернуть” (функция-фабрика)
-
-Когда элементов становится много, код быстро превращается в кашу, если всё писать в одном месте.
-Поэтому часто делают так:
-
-- есть функция, которая создаёт один элемент
-- она принимает данные
-- внутри настраивает DOM
-- и возвращает готовый узел
-
-Пример: хотим создавать “карточку товара”.
-
-```javascript
-function createProductCard(product) {
-  const card = document.createElement("div");
-  card.classList.add("product-card");
-  card.dataset.id = product.id;
-
-  const title = document.createElement("h3");
-  title.textContent = product.title;
-
-  const price = document.createElement("p");
-  price.textContent = `${product.price} CZK`;
-  price.classList.add("product-card__price");
-
-  card.append(title, price);
-  return card;
-}
-```
-
-Здесь важно:
-- функция принимает **данные** (объект `product`)
-- внутри создаёт и настраивает элемент
-- возвращает готовый узел, который можно вставить в DOM
-
-Такой паттерн позволяет нам держать логику создания элемента в одном месте, а в остальном коде просто вызывать эту функцию и вставлять результат в нужное место. Это делает код более чистым, понятным и поддерживаемым.
-
-Пример использования:
-
-```javascript
-const products = [
-  { id: 1, title: "Milk", price: 20 },
-  { id: 2, title: "Bread", price: 15 },
-  { id: 3, title: "Eggs", price: 30 }
-];
-const container = document.getElementById("product-list");
-products.forEach(product => {
-  const card = createProductCard(product);
-  container.append(card);
-});
-```
-
-В итоге на странице будет список карточек товаров, созданных динамически на основе данных из массива `products`. И вся логика создания карточки сосредоточена в функции `createProductCard`, что делает код более организованным и удобным для поддержки.
-
-**Важный момент: не забывайте “чистить контейнер” при повторном рендере**
-
-Если вы будете запускать рендер ещё раз - элементы начнут дублироваться. Поэтому перед перерисовкой обычно очищают контейнер.
-
-Самый простой вариант:
-
-```javascript
-container.innerHTML = ""; // Очищаем контейнер перед рендером
-```
-
-После чего можно снова отрендерить список.
-
-### Мини-правило по стилю кода
-
-Если у вас:
-
-- один элемент → создаём и вставляем
-- много элементов → делаем функцию `create...()` и отдельный рендер из массива
-
-Так DOM-код остаётся читаемым и масштабируемым. Если же вы начнёте создавать много элементов прямо в теле функции, которая отвечает за рендер, код быстро превратится в кашу, и будет сложно понять, что происходит. Поэтому лучше придерживаться этого простого правила: если элемент один - создаём и вставляем сразу, если много - делаем функцию-фабрику для создания элемента и отдельный рендер для вставки всех элементов.
-
----
-## Удаление и замена элементов: remove() и replaceWith()
-
-Иногда элемент нужно не *“поправить”*, а убрать полностью или заменить другим. Для этого в DOM есть два простых метода:
-
-- `remove()` - удаляет элемент из DOM
-- `replaceWith(newNode)` - заменяет элемент на другой
-
-### Удаление элемента: remove()
-
-`remove()` удаляет элемент из DOM. Допустим, у нас есть блок:
-
-```html
-<div class="banner">Sale -50%</div>
-```
-
-Находим его и удаляем:
+Для необязательного элемента подойдет обычная проверка:
 
 ```javascript
 const banner = document.querySelector(".banner");
 
 if (banner) {
-  banner.remove();
+  banner.textContent = "Welcome";
 }
 ```
 
-После выполнения этого кода элемент `<div class="banner">Sale -50%</div>` будет удалён со страницы. Если мы попытаемся обратиться к `banner` после удаления, он всё равно будет существовать в памяти, но уже не будет частью DOM, и любые попытки взаимодействовать с ним через DOM будут неэффективными.
+Частая ошибка:
 
-### Замена элемента: replaceWith()
+```javascript
+const title = document.querySelector(".main-title");
 
-`replaceWith(newNode)` заменяет один элемент другим. 
+title.textContent = "Hello";
+```
 
-Например, у нас есть такой HTML:
+Если селектор неверный, `title` равен `null` и появится `TypeError`.
+
+## Навигация относительно элемента
+
+Иногда нужный элемент удобно получить относительно уже найденного:
 
 ```html
-<p id="status">Loading...</p>
+<section class="schedule">
+  <h2>Today</h2>
+  <div class="event-list"></div>
+</section>
 ```
-
-Мы хотим заменить его на “готовый” блок:
 
 ```javascript
-const status = document.getElementById("status");
+const schedule = document.querySelector(".schedule");
 
-if (status) {
-  const done = document.createElement("p");
-  done.id = "status";
-  done.classList.add("status--done");
-  done.textContent = "Done";
-
-  status.replaceWith(done);
-}
+console.log(schedule.parentElement);
+console.log(schedule.children);
+console.log(schedule.firstElementChild);
+console.log(schedule.lastElementChild);
+console.log(schedule.nextElementSibling);
+console.log(schedule.previousElementSibling);
 ```
 
-**Важно:** старый элемент полностью исчезает, вместо него в DOM появляется новый.
+В большинстве задач достаточно селекторов и работы внутри известного контейнера.
 
-Мини-правило
+## Изменение текста
 
-- если нужно убрать элемент со страницы - `remove()`
-- если проще “пересобрать” элемент заново, чем менять 10 строк внутри - `replaceWith()`
+У DOM-элемента есть несколько похожих свойств для работы с содержимым. Они решают разные задачи, поэтому важно не выбирать их случайно.
 
+### `textContent`
 
-## Рендер через строку: генераторы HTML и вставка через innerHTML
-
-Иногда интерфейс нужно собрать быстро: есть данные, и нужно *“выложить”* кусок разметки на страницу. В таких случаях часто используют подход рендера через строку.
-
-Идея очень простая:
-
-- мы генерируем HTML как строку
-- вставляем эту строку в DOM через innerHTML
-
-Это не *“единственно правильный способ”*, но он очень распространён: быстро собрать шаблон, вывести список, показать блоки.
-
-### Шаг 1. Генератор атрибутов
-
-Нам удобно передавать атрибуты как объект:
+`textContent` читает или записывает текст элемента и всех его дочерних узлов. HTML-разметка при записи не интерпретируется.
 
 ```javascript
-{ class: "red", style: "color:blue;", "data-id": "12" }
+const title = document.querySelector("#title");
+
+title.textContent = "Frontend events";
 ```
 
-И превращать его в строку:
+HTML-символы при этом отображаются как текст:
 
 ```javascript
-class="red" style="color:blue;" data-id="12"
+title.textContent = "<span>Frontend events</span>";
 ```
 
-Для этого можно написать функцию:
+Пользователь увидит строку `<span>Frontend events</span>`, а новый элемент создан не будет.
 
-```javascript
-const propsGenerator = (props = {}) =>
-  Object.entries(props)
-    .map(([key, value]) => `${key}="${value}"`)
-    .join(" ");
-```
-
-### Важный момент по безопасности в шаблонах-строках
-
-Если вы вставляете в HTML пользовательский ввод (форма, комментарий, данные от API без очистки), нельзя подставлять строку “как есть” в `innerHTML`.
-
-Базовый подход - экранировать специальные символы:
-
-```javascript
-function escapeHTML(value = "") {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-```
-
-И использовать так:
-
-```javascript
-const safeTitle = escapeHTML(product.title);
-const html = `<h3>${safeTitle}</h3>`;
-```
-
-Это не “полная защита от всех угроз”, но для базовой лекции важно сразу формировать правильную привычку: всё, что пришло от пользователя, считаем потенциально небезопасным.
-
-### Шаг 2. Генераторы элементов
-
-Теперь мы пишем небольшие функции, которые возвращают HTML-строку.
-```javascript
-const titleGenerator = ({ text, h = 1, props = {} }) =>
-  `<h${h} ${propsGenerator(props)}>${text}</h${h}>`;
-
-const divGenerator = ({ text, props = {} }) =>
-  `<div ${propsGenerator(props)}>${text}</div>`;
-```
-
-### Шаг 3. “Таблица генераторов”
-
-Можно сделать объект, который будет хранить все генераторы:
-
-```javascript
-const state = {
-  h: titleGenerator,
-  div: divGenerator,
-};
-```
-
-**Пример использования:**
-
-```javascript
-const h = state.h({
-  text: "text1",
-  h: 3,
-  props: { class: "red", style: "color:blue;", "data-lang": "en" },
-});
-
-const div = state.div({
-  text: "Text2",
-  props: { class: "block" },
-});
-
-console.log(h);
-console.log(div);
-```
-
-На выходе мы получаем строки:
+При записи `textContent` старые дочерние элементы удаляются и заменяются одним текстовым узлом:
 
 ```html
-<h3 class="red" style="color:blue;" data-lang="en">text1</h3>
-<div class="block">Text2</div>
+<h1 id="title">
+  Frontend
+  <span>events</span>
+</h1>
 ```
-
-### Шаг 4. Вставляем строку в DOM через innerHTML
-
-Теперь самое главное: строка сама по себе не отображается. Её нужно вставить в документ.
-
-Допустим, есть контейнер:
-
-```html
-<div id="container"></div>
-```
-
-Мы можем вставить нашу строку так:
 
 ```javascript
-const container = document.getElementById("container");
-container.innerHTML = h + div; // Вставляем обе строки в контейнер
+title.textContent = "New title";
 ```
 
-В итоге на странице будет:
+После выполнения внутри `h1` останется только текст `New title`.
+
+Используйте `textContent`, когда нужно:
+
+- вывести имя, комментарий или сообщение пользователя;
+- показать данные из API;
+- изменить подпись, заголовок, цену или статус;
+- прочитать весь текст элемента независимо от CSS;
+- записать строку, которая не должна превращаться в HTML.
+
+Для обычной работы с текстом это основной и наиболее безопасный способ.
+
+### `innerText`
+
+`innerText` возвращает текст примерно так, как его видит пользователь. Он учитывает CSS, скрытые элементы и визуальные переносы строк.
 
 ```html
-<div id="container">
-  <h3 class="red" style="color:blue;" data-lang="en">text1</h3>
-  <div class="block">Text2</div>
+<div id="info">
+  Visible text
+  <span hidden>Hidden text</span>
 </div>
 ```
 
-После этого элементы реально появляются на странице.
+```javascript
+const info = document.querySelector("#info");
 
-**Важно:** при вставке через `innerHTML` старые элементы внутри контейнера будут удалены, а новые - созданы заново. Поэтому если у вас есть какие-то обработчики событий или ссылки на старые элементы, они перестанут работать после замены `innerHTML`. Поэтому этот способ подходит для случаев, когда нужно быстро отрендерить новый контент, и нет необходимости сохранять состояние старых элементов. Если же вам нужно сохранить обработчики событий или состояние, лучше использовать методы создания и добавления элементов, о которых мы говорили ранее.
+console.log(info.textContent);
+// содержит Visible text и Hidden text
 
-## Типовой паттерн рендера: список из массива объектов
+console.log(info.innerText);
+// содержит только видимый текст
+```
 
-До этого мы работали с DOM *“вручную”*: создали один элемент, вставили, поменяли текст.
-Но реальная работа почти всегда выглядит иначе:
+Чтение `innerText` может потребовать от браузера вычислить расположение и стили элементов. Поэтому не стоит использовать его без необходимости в больших циклах.
 
-- есть данные (массив объектов),
-- есть контейнер на странице,
-- нужно отрисовать всё в DOM.
+Используйте `innerText`, когда действительно нужен текст в том виде, в котором он визуально отображается на странице. Например, для копирования видимой части интерфейса.
 
-И важно понимать одну вещь:
+Для обычной записи текста предпочитайте `textContent`.
 
-**DOM - это отображение данных. Если данные поменялись - мы чаще всего перерисовываем DOM заново.**
+### `innerHTML`
 
-### Данные → рендер
-
-Возьмём простой пример: список товаров.
+`innerHTML` читает или заменяет HTML-разметку внутри элемента:
 
 ```javascript
-const products = [
-  { id: 1, title: "Milk", price: 20 },
-  { id: 2, title: "Bread", price: 15 },
-  { id: 3, title: "Eggs", price: 30 }
-];
-```
+const container = document.querySelector("#content");
 
-И контейнер в HTML:
-
-```html
-<div id="product-list"></div>
-```
-
-### 1 Рендер через createElement (DOM-узлы)
-
-Здесь мы создаём элементы как объекты, настраиваем и вставляем.
-
-```javascript
-function renderProducts(products, container) {
-  // 1) очищаем контейнер перед рендером
-  container.innerHTML = "";
-
-  // 2) пустое состояние
-  if (products.length === 0) {
-    const empty = document.createElement("p");
-    empty.textContent = "Нет товаров";
-    empty.classList.add("empty");
-    container.append(empty);
-    return;
-  }
-
-  // 3) рендерим список
-  products.forEach((product) => {
-    const card = document.createElement("div");
-    card.classList.add("product-card");
-    card.dataset.id = product.id;
-
-    const title = document.createElement("h3");
-    title.textContent = product.title;
-
-    const price = document.createElement("p");
-    price.textContent = `${product.price} CZK`;
-    price.classList.add("product-card__price");
-
-    card.append(title, price);
-    container.append(card);
-  });
-}
-
-const container = document.getElementById("product-list");
-renderProducts(products, container);
-```
-
-Что здесь важно:
-
-- контейнер всегда очищается перед повторным рендером
-- есть *“пустое состояние”*
-- данные не смешиваются с DOM-логикой: есть отдельная функция `renderProducts`
-
-
-**Почему всегда нужен clear перед повторным рендером**
-
-Если не очищать контейнер, то при повторном вызове функции карточки будут дублироваться.
-
-```javascript
-renderProducts(products, container); // первый рендер
-renderProducts(products, container); // второй рендер - карточки будут повторяться
-```
-
-### 2 Рендер через строку (innerHTML)
-
-Иногда удобнее собирать интерфейс не через createElement, а через HTML-строку.
-
-Идея простая:
-
-- данные → превращаем в строку HTML
-- один раз вставляем в контейнер через innerHTML
-
-Это быстрый способ отрисовать список, особенно когда разметка простая.
-
-Данные
-
-```javascript
-const products = [
-  { id: 1, title: "Milk", price: 20 },
-  { id: 2, title: "Bread", price: 15 },
-  { id: 3, title: "Eggs", price: 30 }
-];
-```
-
-Контейнер:
-
-```html
-<div id="product-list"></div>
-```
-
-**1) Генератор атрибутов (props → строка)**
-
-Мы хотим передавать атрибуты объектом:
-
-```javascript
-{ class: "product-card", "data-id": "12" }
-```
-
-И превращать в строку:
-
-```html
-class="product-card" data-id="1"
-```
-
-```javascript
-const propsGenerator = (props = {}) =>
-  Object.entries(props)
-    .map(([key, value]) => `${key}="${value}"`)
-    .join(" ");
-```
-
-**2) Генераторы элементов (данные → HTML-строка)**
-
-```javascript
-const productCardGenerator = (product) => `
-  <div ${propsGenerator({ class: "product-card", "data-id": product.id })}>
-    <h3 ${propsGenerator({ class: "product-card__title" })}>${product.title}</h3>
-    <p ${propsGenerator({ class: "product-card__price" })}>${product.price} CZK</p>
-  </div>
+container.innerHTML = `
+  <section class="welcome">
+    <h2>Welcome</h2>
+    <p>Choose an event</p>
+  </section>
 `;
 ```
 
-**3) Рендер списка (массив → innerHTML)**
+Браузер разбирает строку и создает настоящие DOM-элементы.
+
+При присваивании нового `innerHTML` старые дочерние узлы удаляются. Ссылки на них могут остаться в JavaScript, но они больше не являются частью страницы. Обработчики событий, установленные непосредственно на удаленные элементы, также перестанут работать в интерфейсе.
+
+Используйте `innerHTML`, когда:
+
+- разметка полностью контролируется разработчиком;
+- нужно быстро вставить небольшой статический HTML-шаблон;
+- внутри строки нет пользовательских или других неизвестных данных;
+- пересоздание содержимого контейнера является ожидаемым поведением.
+
+Не используйте `innerHTML`, если в строку подставляются данные формы, URL, `localStorage` или внешнего API без надежной очистки.
+
+| Свойство | Что возвращает или записывает                           | Когда использовать                                                             |
+| ---------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `textContent`  | текст всех дочерних узлов, HTML не выполняется | основной способ для текста, данных пользователя и API |
+| `innerText`    | визуально отображаемый текст с учетом CSS        | когда нужен именно видимый текст                                    |
+| `innerHTML`    | HTML-разметку внутри элемента                               | только для доверенной и контролируемой разметки       |
+
+### Как выбрать способ
+
+Задайте себе два вопроса:
+
+1. Мне нужен текст или HTML-разметка?
+2. Полностью ли я контролирую значение?
+
+```text
+Нужен обычный текст                         -> textContent
+Нужен текст, который сейчас видит пользователь -> innerText
+Нужна доверенная HTML-разметка              -> innerHTML
+Есть неизвестные данные                     -> textContent или createElement
+```
+
+## `innerHTML` и безопасность
+
+`innerHTML` интерпретирует строку как HTML. Если часть строки контролирует другой человек, он может попытаться добавить вредоносную разметку или JavaScript.
+
+Такая уязвимость называется XSS, или Cross-Site Scripting. При XSS чужой код выполняется на странице от имени вашего сайта.
+
+Вредоносный код потенциально может:
+
+- прочитать информацию из DOM;
+- получить доступ к данным, доступным JavaScript;
+- отправить запрос от имени пользователя;
+- изменить содержимое страницы;
+- показать поддельную форму входа;
+- передать доступные данные на внешний сервер.
+
+`alert()` в учебных примерах только демонстрирует факт выполнения кода. Реальная атака обычно не показывает уведомление.
+
+### Откуда могут прийти опасные данные
+
+Недоверенными нужно считать данные из:
+
+- полей формы;
+- параметров URL;
+- комментариев и сообщений;
+- `localStorage`;
+- внешнего API;
+- базы данных, если раньше туда мог записать данные пользователь.
+
+Даже ответ API нельзя автоматически считать безопасной HTML-разметкой.
+
+### Пример уязвимости
 
 ```javascript
-function renderProductsHTML(products, container) {
-  // 1) пустое состояние
-  if (products.length === 0) {
-    container.innerHTML = `<p ${propsGenerator({ class: "empty" })}>Нет товаров</p>`;
+const container = document.querySelector("#content");
+const comment = '<img src="x" onerror="alert(1)">';
+
+container.innerHTML = comment;
+```
+
+Браузер создаст элемент `img`. Загрузка неправильного адреса завершится ошибкой, после чего выполнится код из `onerror`.
+
+### Безопасный вывод через `textContent`
+
+```javascript
+container.textContent = comment;
+```
+
+Строка будет показана пользователю как текст. Элемент `img` не создастся, а обработчик `onerror` не выполнится.
+
+### Безопасное создание сложного интерфейса
+
+Если нужно создать структуру из неизвестных данных, используйте DOM-методы:
+
+```javascript
+const card = document.createElement("article");
+const title = document.createElement("h2");
+const description = document.createElement("p");
+
+title.textContent = event.title;
+description.textContent = event.description;
+
+card.append(title, description);
+container.replaceChildren(card);
+```
+
+Разметка создается разработчиком, а неизвестные значения записываются только как текст.
+
+### Другие опасные точки вставки
+
+Риск относится не только к `innerHTML`. Осторожность нужна и с:
+
+- `outerHTML`;
+- `insertAdjacentHTML()`;
+- `document.write()`;
+- созданием строковых обработчиков вроде `onclick="..."`;
+- динамическими значениями `href` и `src`.
+
+Например, `textContent` не защищает адрес ссылки, если опасная строка записывается в `href`. URL тоже нужно отдельно проверять.
+
+### Если пользователь должен вводить форматированный HTML
+
+Иногда приложение действительно должно поддерживать пользовательское форматирование. В таком случае простого `textContent` недостаточно, потому что он покажет теги как текст.
+
+Для такой задачи применяют проверенную библиотеку очистки HTML с разрешенным списком тегов и атрибутов. Самодельная функция из нескольких `replace()` или `replaceAll()` не является полной защитой.
+
+Правило курса:
+
+> Неизвестные данные вставляем через `textContent`. `innerHTML` используем только для контролируемой разработчиком разметки.
+
+## Атрибуты
+
+HTML-элементы содержат атрибуты:
+
+```html
+<img src="speaker.jpg" alt="Speaker Anna">
+```
+
+Основные методы:
+
+```javascript
+const image = document.querySelector("img");
+
+console.log(image.getAttribute("src"));
+console.log(image.hasAttribute("alt"));
+
+image.setAttribute("alt", "JavaScript speaker");
+image.removeAttribute("title");
+```
+
+Многие стандартные атрибуты доступны как свойства:
+
+```javascript
+image.alt = "JavaScript speaker";
+image.src = "./images/speaker.jpg";
+```
+
+## Пользовательские `data-*` атрибуты
+
+`data-*` позволяют связать DOM-элемент с идентификатором или другим простым значением:
+
+```html
+<article class="event-card" data-event-id="15" data-room="A1"></article>
+```
+
+Доступ через `dataset`:
+
+```javascript
+const card = document.querySelector(".event-card");
+
+console.log(card.dataset.eventId); // "15"
+console.log(card.dataset.room); // "A1"
+```
+
+Запись:
+
+```javascript
+card.dataset.eventId = "20";
+card.dataset.status = "active";
+```
+
+Значения в `dataset` являются строками:
+
+```javascript
+const eventId = Number(card.dataset.eventId);
+```
+
+В лекции 8 `dataset` будет использоваться для определения действия и выбранного элемента.
+
+## Классы и стили
+
+### `classList`
+
+```javascript
+const card = document.querySelector(".event-card");
+
+card.classList.add("event-card--online");
+card.classList.remove("event-card--hidden");
+card.classList.toggle("event-card--featured");
+
+console.log(card.classList.contains("event-card--online"));
+```
+
+Второй аргумент `toggle` позволяет явно управлять состоянием:
+
+```javascript
+card.classList.toggle("event-card--online", event.isOnline);
+```
+
+Если `event.isOnline` равен `true`, класс будет добавлен. Если `false`, класс будет удален.
+
+### Прямые стили
+
+```javascript
+const progress = document.querySelector(".progress__value");
+
+progress.style.width = "75%";
+```
+
+Прямые стили полезны для действительно динамического значения. Обычное оформление лучше хранить в CSS и переключать классами.
+
+```javascript
+card.classList.add("event-card--featured");
+```
+
+## Создание элементов
+
+`document.createElement()` создает новый элемент в памяти:
+
+```javascript
+const message = document.createElement("p");
+
+message.textContent = "Schedule loaded";
+message.classList.add("message", "message--success");
+message.dataset.status = "success";
+```
+
+Пока элемент не вставлен в DOM, пользователь его не видит.
+
+### Вставка
+
+```javascript
+const container = document.querySelector("#messages");
+
+container.append(message);
+```
+
+Основные методы вставки:
+
+```javascript
+container.append(element); // в конец
+container.prepend(element); // в начало
+existing.before(element); // перед существующим элементом
+existing.after(element); // после существующего элемента
+```
+
+Один DOM-элемент не может одновременно находиться в двух местах. Повторная вставка перемещает его:
+
+```javascript
+const paragraph = document.createElement("p");
+paragraph.textContent = "Move me";
+
+firstContainer.append(paragraph);
+secondContainer.append(paragraph);
+```
+
+После выполнения элемент будет только внутри `secondContainer`.
+
+## Удаление и замена
+
+### `remove`
+
+```javascript
+const banner = document.querySelector(".banner");
+
+banner.remove();
+```
+
+Переменная продолжает хранить элемент. Его можно изменить и вставить снова:
+
+```javascript
+banner.textContent = "Updated banner";
+container.append(banner);
+```
+
+### `replaceWith`
+
+```javascript
+const status = document.querySelector("#status");
+const done = document.createElement("p");
+
+done.id = "status";
+done.textContent = "Done";
+done.classList.add("status--success");
+
+status.replaceWith(done);
+```
+
+## Функция создания одного элемента
+
+Когда интерфейс создается из данных, удобно разделять создание одного элемента и рендер всего списка.
+
+Данные:
+
+```javascript
+const event = {
+  id: 1,
+  title: "JavaScript Basics",
+  speaker: "Anna",
+  room: "A1",
+  time: "10:00",
+  isOnline: false,
+};
+```
+
+Функция создания карточки:
+
+```javascript
+function createEventCard(event) {
+  const card = document.createElement("article");
+  card.classList.add("event-card");
+  card.classList.toggle("event-card--online", event.isOnline);
+  card.dataset.eventId = String(event.id);
+
+  const title = document.createElement("h2");
+  title.classList.add("event-card__title");
+  title.textContent = event.title;
+
+  const speaker = document.createElement("p");
+  speaker.textContent = `Speaker: ${event.speaker}`;
+
+  const time = document.createElement("time");
+  time.textContent = event.time;
+
+  const room = document.createElement("p");
+  room.textContent = event.isOnline ? "Online" : `Room: ${event.room}`;
+
+  card.append(title, speaker, time, room);
+
+  return card;
+}
+```
+
+Паттерн:
+
+```text
+создать -> настроить -> собрать -> вернуть
+```
+
+Функция `createEventCard`:
+
+- получает данные;
+- создает один DOM-элемент;
+- безопасно записывает текст;
+- не ищет контейнер;
+- не вставляет карточку на страницу;
+- возвращает готовый элемент.
+
+Такую функцию проще тестировать, читать и использовать повторно.
+
+## Рендер массива объектов
+
+Данные:
+
+```javascript
+const events = [
+  {
+    id: 1,
+    title: "JavaScript Basics",
+    speaker: "Anna",
+    room: "A1",
+    time: "10:00",
+    isOnline: false,
+  },
+  {
+    id: 2,
+    title: "Modern CSS",
+    speaker: "Petr",
+    room: "Online",
+    time: "12:00",
+    isOnline: true,
+  },
+];
+```
+
+### `DocumentFragment`
+
+`DocumentFragment` является временным контейнером в памяти. В него можно собрать элементы, а затем вставить их одной операцией:
+
+```javascript
+const fragment = document.createDocumentFragment();
+
+fragment.append(createEventCard(events[0]));
+fragment.append(createEventCard(events[1]));
+```
+
+### Функция рендера
+
+```javascript
+function renderEvents(events, container) {
+  if (events.length === 0) {
+    const empty = document.createElement("p");
+    empty.classList.add("empty-state");
+    empty.textContent = "Events not found";
+
+    container.replaceChildren(empty);
     return;
   }
 
-  // 2) собираем одну строку из массива
-  const html = products.map(productCardGenerator).join("");
+  const fragment = document.createDocumentFragment();
 
-  // 3) вставляем одним действием
+  events.forEach((event) => {
+    fragment.append(createEventCard(event));
+  });
+
+  container.replaceChildren(fragment);
+}
+```
+
+`replaceChildren()` удаляет старое содержимое и вставляет новые узлы. Поэтому повторный рендер не создает дубли:
+
+```javascript
+const eventList = document.querySelector("#event-list");
+
+if (!eventList) {
+  throw new Error("Container #event-list not found");
+}
+
+renderEvents(events, eventList);
+renderEvents(events, eventList);
+```
+
+После второго вызова карточек останется столько же, сколько элементов в массиве.
+
+### Отдельное пустое состояние
+
+Пустое состояние тоже можно создавать функцией:
+
+```javascript
+function createEmptyState(message) {
+  const empty = document.createElement("p");
+  empty.classList.add("empty-state");
+  empty.textContent = message;
+
+  return empty;
+}
+```
+
+```javascript
+function renderEvents(events, container) {
+  if (events.length === 0) {
+    container.replaceChildren(createEmptyState("Events not found"));
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  events.forEach((event) => {
+    fragment.append(createEventCard(event));
+  });
+
+  container.replaceChildren(fragment);
+}
+```
+
+## Рендер через `innerHTML`
+
+Для полностью контролируемых данных иногда используют HTML-строку:
+
+```javascript
+function renderStaticTopics(topics, container) {
+  const html = topics
+    .map((topic) => `<li class="topic">${topic}</li>`)
+    .join("");
+
   container.innerHTML = html;
 }
-
-const container = document.getElementById("product-list");
-renderProductsHTML(products, container);
 ```
 
-### Почему .join("") обязателен
+Но если `topic` пришел от пользователя или неизвестного API, такая вставка небезопасна.
 
-`map()` возвращает массив строк. Если вы вставите его напрямую, получится запятая между элементами:
+Сравнение подходов:
+
+| `createElement`                                                             | `innerHTML`                                                                      |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| безопасно записывает текст через `textContent` | интерпретирует строку как HTML                              |
+| возвращает реальные DOM-узлы                            | пересоздает содержимое контейнера                   |
+| удобно настраивать свойства и классы          | удобно для короткой контролируемой разметки |
+| основной способ этой лекции                           | дополнительный способ                                          |
+
+Не используйте `innerHTML +=` внутри цикла:
 
 ```javascript
-const html = products.map(productCardGenerator);
-container.innerHTML = html;
+events.forEach((event) => {
+  container.innerHTML += `<article>${event.title}</article>`;
+});
 ```
 
-Поэтому всегда:
+На каждой итерации браузер читает текущее содержимое, добавляет строку и создает дочерние элементы заново.
+
+## Доступность динамического интерфейса
+
+JavaScript не отменяет правила семантического HTML:
+
+- карточку можно создавать через `article`;
+- для действия используйте `button`, а не `div`;
+- изображению нужен понятный `alt`;
+- сохраняйте логическую последовательность заголовков;
+- не обозначайте состояние только цветом;
+- текст ошибки должен объяснять проблему;
+- скрытый контент не должен случайно оставаться доступным для клавиатуры.
+
+Плохо:
 
 ```javascript
-const html = products.map(productCardGenerator).join("");
-container.innerHTML = html;
+const action = document.createElement("div");
+action.textContent = "Open details";
 ```
 
-### Мини-вывод: когда строка - ок, а когда лучше DOM-узлы
-
-- `innerHTML` удобно, когда нужно быстро отрисовать блок и у вас нет сложной логики.
-- `createElement` удобнее, когда вы:
-
-  - собираете большие структуры по шагам
-  - хотите точнее контролировать элементы
-  - не хотите пересоздавать весь контейнер целиком при обновлении
-
-
-## Частые ошибки новичков при работе с DOM
-
-Когда `DOM` только начинается, почти все ошибки одинаковые. Важно не *“зазубрить”*, а понимать почему так происходит.
-
-### Ошибка 1: неправильный селектор и null
-
-Самая частая ситуация:
+Лучше:
 
 ```javascript
-const title = document.querySelector(".main-title"); // а в HTML id="main-title"
-title.textContent = "Hello"; // TypeError
+const action = document.createElement("button");
+action.type = "button";
+action.textContent = "Open details";
 ```
 
-Проблема не в `textContent`. Проблема в том, что `title === null`.
+Событие клика будет добавлено в следующей лекции.
 
-Мини-правило:
+## Частые ошибки
+
+### Неправильный селектор
 
 ```javascript
-const title = document.querySelector("#main-title");
-if (title) {
-  title.textContent = "Hello";
-}
-```
-### Ошибка 2: коллекция - это не элемент
+const title = document.querySelector(".title");
 
-`querySelectorAll` возвращает коллекцию (NodeList), а не один элемент.
+title.textContent = "Hello";
+```
+
+Если в HTML используется `id="title"`, результат равен `null`.
+
+### Коллекция вместо элемента
 
 ```javascript
 const items = document.querySelectorAll(".item");
-items.textContent = "X"; // не работает
+
+items.textContent = "Updated";
 ```
 
-Правильно - пройтись циклом:
+Нужно перебрать коллекцию:
 
 ```javascript
 items.forEach((item) => {
-  item.textContent = "X";
+  item.textContent = "Updated";
 });
 ```
 
-### Ошибка 3: перезапись innerHTML внутри цикла
+### Карточки дублируются
 
-Такое выглядит логично, но работает плохо:
+Если при повторном рендере использовать только `append`, старые элементы останутся. Используйте `replaceChildren` или очищайте контейнер перед вставкой.
 
-```javascript
-products.forEach((p) => {
-  container.innerHTML += `<div>${p.title}</div>`;
-});
-```
-
-Проблема в том, что `innerHTML +=` - это не просто добавление строки. Это значит: “возьми текущий HTML, добавь к нему строку, и вставь обратно”. Поэтому при каждом вызове происходит полная перерисовка контейнера, и если элементов много - это будет работать очень медленно.
-
-### Ошибка 4: забыли очистить контейнер перед повторным рендером
+### Неизвестные данные вставляются через `innerHTML`
 
 ```javascript
-renderProducts(products, container);
-renderProducts(products, container); // дубли
+container.innerHTML = userComment;
 ```
 
-Мини-правило: рендер всегда начинается с очистки
+Для текста используйте:
 
 ```javascript
-container.innerHTML = "";
+container.textContent = userComment;
 ```
 
-### Ошибка 5: слишком много запросов к DOM
+### Один элемент вставляется в два места
 
-Новички часто пишут так:
+Вторая вставка перемещает существующий узел. Для каждой карточки вызывайте `createElement` или функцию `create...()` заново.
 
-```javascript
-document.querySelector("#product-list").innerHTML = "";
-document.querySelector("#product-list").innerHTML = "<p>...</p>";
-```
+### Функция создания сама вставляет элемент
 
-Каждый `querySelector` - это поиск. Лучше:
+Если `createEventCard()` одновременно создает карточку, ищет контейнер и вставляет карточку, ее сложнее использовать повторно. Разделяйте создание и рендер.
 
-```javascript
-const container = document.querySelector("#product-list");
-container.innerHTML = "";
-container.innerHTML = "<p>...</p>";
-```
+### Данные изменяются во время рендера
 
-Мини-правило: один раз нашли → сохранили в переменную → работаем
+Функция рендера должна отображать данные, а не неожиданно менять исходный массив или объекты.
 
 ## Заключение
 
-`DOM` - это мощный инструмент для создания динамических интерфейсов. Но важно понимать, как он работает, чтобы использовать его эффективно и избегать распространённых ошибок. В этом уроке мы рассмотрели основные методы работы с DOM: поиск элементов, изменение содержимого, управление атрибутами и классами, создание новых элементов и рендер через строки. Теперь у вас есть базовые знания, чтобы начать создавать свои собственные динамические страницы и приложения!
+Главные выводы:
 
-## Чек-лист после лекции
+1. DOM является деревом объектов, созданным браузером из HTML.
+2. Скрипт должен выполняться после разбора нужной разметки.
+3. `querySelector` возвращает элемент или `null`.
+4. `querySelectorAll` возвращает коллекцию.
+5. Неизвестный текст безопаснее вставлять через `textContent`.
+6. `dataset` связывает элемент с идентификатором или простым значением.
+7. Состояние оформления лучше переключать классами.
+8. Функция `create...()` создает и возвращает один узел.
+9. Функция `render...()` отображает массив и обрабатывает пустое состояние.
+10. `replaceChildren()` делает повторный рендер предсказуемым.
 
-После этой лекции вы должны уметь:
+### Чек-лист
 
-- объяснить, что такое DOM и почему `document` - главный вход в него
-- корректно выбирать метод поиска: `getElementById`, `querySelector`, `querySelectorAll`
-- понимать разницу между `NodeList` и `HTMLCollection` (static vs live)
-- менять контент через `textContent`, `innerText`, `innerHTML` и понимать разницу
-- работать с атрибутами через `getAttribute` / `setAttribute` / `removeAttribute`
-- использовать `data-*` и `dataset` для связи HTML и JS
-- управлять внешним видом через `classList`, а не “размазывать” стили в JS
-- создавать, вставлять, удалять и заменять элементы (`createElement`, `append`, `remove`, `replaceWith`)
-- делать базовый рендер списка из массива и избегать частых ошибок при повторном рендере
-
-
-Начиная с этой лекции, практики объединены в один сквозной учебный проект: `Storefront` - витрина небольшого интернет-магазина.
-В `lesson07` работаем только с локальными данными и рендером в `DOM`.
+- могу найти один и несколько элементов;
+- проверяю обязательные элементы после поиска;
+- умею менять текст, атрибуты и классы;
+- понимаю разницу между `textContent` и `innerHTML`;
+- умею создать элемент и вставить его в DOM;
+- умею создать карточку из объекта;
+- умею отрисовать массив объектов;
+- показываю пустое состояние;
+- повторный рендер не создает дубли;
+- неизвестные данные не вставляются через `innerHTML`.
 
 ## Практика
 
-1. Подготовьте базовую разметку страницы:
-   - `header` с названием магазина;
-   - блок статистики `#catalog-summary`;
-   - контейнер каталога `#product-list`;
-   - шаблон пустого состояния `#empty-state`.
+### Часть 1. Базовые задачи
 
-2. Создайте массив `products` минимум из 6 товаров.
-   У каждого товара должны быть поля:
-   - `id`
-   - `title`
-   - `price`
-   - `category`
-   - `rating`
-   - `inStock`
-   - `isFeatured`
+1. Найдите заголовок `#page-title`, измените его текст и добавьте класс `page-title--ready`.
+2. Найдите все элементы `.topic`, выведите их количество и добавьте каждому класс `topic--visible`.
+3. Создайте элемент `p` с текстом `Catalog loaded`, классом `message` и `data-status="success"`. Вставьте его в `#messages`.
+4. Создайте кнопку через `createElement`. Задайте `type="button"`, текст и два CSS-класса. Обработчик события пока не добавляйте.
+5. Создайте уведомление, вставьте его на страницу, удалите через `remove`, измените текст и вставьте повторно.
+6. Найдите элемент с `data-product-id`, получите идентификатор через `dataset` и преобразуйте его в число.
+7. Создайте функцию `createEmptyState(message)`, возвращающую DOM-элемент с безопасно записанным текстом.
+8. Покажите на странице строку `<strong>User text</strong>` так, чтобы браузер не создавал тег `strong`.
 
-3. Реализуйте функцию `createProductCard(product)` через `createElement`.
-   Карточка должна содержать:
-   - `data-id`;
-   - заголовок;
-   - цену;
-   - категорию;
-   - бейдж `Featured`, если `isFeatured === true`;
-   - бейдж `Out of stock`, если `inStock === false`.
+### Часть 2. Каталог товаров
 
-4. Реализуйте функцию `renderProducts(products, container)`:
-   - очищает контейнер перед рендером;
-   - если массив пустой, показывает пустое состояние;
-   - иначе вставляет все карточки товаров.
+В этом задании нужно применить весь паттерн рендера:
 
-5. Реализуйте функцию `renderCatalogSummary(products, container)`, которая показывает:
-   - общее количество товаров;
-   - количество товаров в наличии;
-   - количество featured-товаров;
-   - минимальную и максимальную цену.
+```text
+массив товаров
+  -> createProductCard(product)
+  -> DocumentFragment
+  -> renderProducts(products, container)
+```
 
-6. Сделайте вторую версию рендера `renderProductsHTML(products, container)` через `innerHTML` + `map().join("")`.
-   После этого сравните два подхода:
-   - где проще добавить обработчики позже;
-   - где проще собрать большую разметку;
-   - где выше риск ошибки.
+HTML:
 
-7. Проверьте повторный рендер на двух сценариях:
-   - отрисуйте весь каталог;
-   - отрисуйте только товары в наличии;
-   - отрисуйте пустой массив и убедитесь, что не остаются старые карточки.
+```html
+<header>
+  <h1 id="page-title">Product catalog</h1>
+  <div id="products-summary"></div>
+</header>
 
-8. Добавьте служебный блок уведомления.
-   Реализуйте сценарий:
-   - показать сообщение `Catalog rendered`;
-   - заменить его на `Only in-stock products rendered` через `replaceWith()`;
-   - затем удалить уведомление через `remove()`.
+<main>
+  <section>
+    <h2>Products</h2>
+    <div id="product-list"></div>
+  </section>
+</main>
+```
+
+Данные:
+
+```javascript
+const products = [
+  {
+    id: 1,
+    title: "Mechanical Keyboard",
+    price: 89,
+    category: "accessories",
+    image: "./images/keyboard.webp",
+    inStock: true,
+    isFeatured: true,
+  },
+  {
+    id: 2,
+    title: "Wireless Mouse",
+    price: 45,
+    category: "accessories",
+    image: "./images/mouse.webp",
+    inStock: true,
+    isFeatured: false,
+  },
+  {
+    id: 3,
+    title: "4K Monitor",
+    price: 420,
+    category: "displays",
+    image: "./images/monitor.webp",
+    inStock: false,
+    isFeatured: true,
+  },
+];
+```
+
+Реализуйте:
+
+```javascript
+createProductCard(product)
+createEmptyState(message)
+renderProducts(products, container)
+renderProductsSummary(products, container)
+```
+
+Требования к карточке:
+
+- корневой элемент `article`;
+- класс `product-card`;
+- `data-product-id`;
+- изображение с корректным `alt`;
+- заголовок;
+- цена с валютой;
+- категория;
+- текст `In stock` или `Out of stock`;
+- класс `product-card--out-of-stock`, если товара нет;
+- бейдж `Featured`, если товар отмечен как рекомендуемый;
+- кнопка `Open details` без обработчика события.
+
+Пример построения отдельного изображения:
+
+```javascript
+function createProductImage(product) {
+  const image = document.createElement("img");
+
+  image.classList.add("product-card__image");
+  image.src = product.image;
+  image.alt = product.title;
+
+  return image;
+}
+```
+
+Внутри `createProductCard` вызовите `createProductImage` и соберите остальные элементы карточки.
+
+Сводка каталога показывает:
+
+- общее количество товаров;
+- количество товаров в наличии;
+- количество рекомендуемых товаров;
+- минимальную и максимальную цену;
+- понятный текст для пустого массива.
+
+Проверьте рендер:
+
+1. полного массива;
+2. только товаров в наличии;
+3. только рекомендуемых товаров;
+4. товаров дешевле `100`;
+5. пустого массива;
+6. полного массива после пустого результата.
+
+При каждом вызове контейнер должен содержать только актуальные карточки.
+
+### Часть 3. Карточки пользователей
+
+Это самостоятельное задание на перенос того же паттерна в другую предметную область.
+
+HTML:
+
+```html
+<section class="users">
+  <div class="users__header">
+    <h2>Team members</h2>
+    <div id="users-summary"></div>
+  </div>
+
+  <div id="user-list"></div>
+</section>
+```
+
+Данные:
+
+```javascript
+const users = [
+  {
+    id: 1,
+    name: "Anna Novak",
+    role: "Frontend Developer",
+    email: "anna@example.com",
+    city: "Prague",
+    avatar: "./images/anna.webp",
+    isActive: true,
+  },
+  {
+    id: 2,
+    name: "Petr Svoboda",
+    role: "Designer",
+    email: "petr@example.com",
+    city: "Brno",
+    avatar: "./images/petr.webp",
+    isActive: false,
+  },
+  {
+    id: 3,
+    name: "<b>Maria</b>",
+    role: "Project Manager",
+    email: "maria@example.com",
+    city: "Prague",
+    avatar: "./images/maria.webp",
+    isActive: true,
+  },
+];
+```
+
+Имя третьего пользователя специально содержит HTML-теги. На странице они должны отображаться как текст, а не как разметка.
+
+Реализуйте:
+
+```javascript
+createUserCard(user)
+renderUsers(users, container)
+renderUsersSummary(users, container)
+```
+
+Требования к карточке:
+
+- корневой элемент `article`;
+- класс `user-card`;
+- `data-user-id`;
+- аватар с `alt`;
+- имя через `textContent`;
+- роль;
+- email;
+- город;
+- текстовый статус `Active` или `Inactive`;
+- класс `user-card--inactive` для неактивного пользователя;
+- кнопка `View profile` без обработчика события.
+
+Сводка пользователей показывает:
+
+- общее количество;
+- количество активных;
+- количество неактивных;
+- количество пользователей из Праги.
+
+Проверьте рендер:
+
+1. всех пользователей;
+2. только активных;
+3. только пользователей из Праги;
+4. пустого массива;
+5. всех пользователей после пустого результата.
+
+Сравните реализации товаров и пользователей:
+
+- какие действия совпадают;
+- какие свойства отличаются;
+- почему обе функции рендера имеют похожую структуру;
+- почему функции создания карточек должны оставаться отдельными.
+
+### Часть 4. Debugging
+
+Сначала предскажите результат, затем исправьте код.
+
+#### Ошибка 1. Неправильный селектор
+
+```javascript
+const title = document.querySelector(".page-title");
+title.textContent = "Updated";
+```
+
+В HTML элемент имеет `id="page-title"`.
+
+#### Ошибка 2. Коллекция
+
+```javascript
+const cards = document.querySelectorAll(".card");
+cards.classList.add("card--ready");
+```
+
+#### Ошибка 3. Дублирование
+
+```javascript
+function renderItems(items, container) {
+  items.forEach((item) => {
+    const element = document.createElement("p");
+    element.textContent = item;
+    container.append(element);
+  });
+}
+
+renderItems(["A", "B"], container);
+renderItems(["A", "B"], container);
+```
+
+#### Ошибка 4. Небезопасная вставка
+
+```javascript
+const userText = '<img src="x" onerror="alert(1)">';
+container.innerHTML = userText;
+```
+
+#### Ошибка 5. Перемещение одного узла
+
+```javascript
+const card = document.createElement("article");
+
+firstContainer.append(card);
+secondContainer.append(card);
+```
 
 ## Домашняя работа
 
-Соберите первую версию страницы **`Storefront - каталог товаров`**.
+> Общие условия:
+>
+> - Подключите JavaScript через `defer`.
+> - Используйте `const` для ссылок на DOM-элементы.
+> - Проверяйте обязательные контейнеры.
+> - Не вставляйте неизвестные данные через `innerHTML`.
+> - Не добавляйте обработчики событий. Они будут в следующей лекции.
 
-### Что нужно сделать
+Используйте эти данные в заданиях:
 
-1. Подготовьте интерфейс:
-   - шапка страницы;
-   - блок краткой статистики;
-   - сетка карточек товаров;
-   - пустое состояние;
-   - небольшой блок “Почему выбрать нас” или “Преимущества магазина”.
+```javascript
+const navigationItems = [
+  { label: "Home", href: "./index.html", isCurrent: false },
+  { label: "Courses", href: "./courses.html", isCurrent: true },
+  { label: "Teachers", href: "./teachers.html", isCurrent: false },
+  { label: "Contacts", href: "./contacts.html", isCurrent: false },
+];
 
-2. Используйте локальный массив минимум из 8 товаров.
-   Рекомендуемые поля:
-   - `id`
-   - `title`
-   - `price`
-   - `category`
-   - `rating`
-   - `inStock`
-   - `isFeatured`
-   - `description`
+const students = [
+  { id: 1, name: "Anna", score: 82, isActive: true },
+  { id: 2, name: "Max", score: 48, isActive: false },
+  { id: 3, name: "Sofia", score: 67, isActive: true },
+  { id: 4, name: "Leo", score: 91, isActive: true },
+];
+```
 
-3. Реализуйте обязательные функции:
-   - `createProductCard(product)`
-   - `renderProducts(products, container)`
-   - `renderProductsHTML(products, container)`
-   - `renderCatalogSummary(products, container)`
-   - `renderEmptyState(container, message)`
+1. Подготовьте начальную HTML-разметку:
 
-4. В карточке товара обязательно покажите:
-   - название;
-   - цену;
-   - категорию;
-   - визуальное состояние “нет в наличии”;
-   - один `data-*` атрибут для будущих действий.
+   ```html
+   <div id="app">
+     <h1 id="main-title">Loading...</h1>
+     <p class="description">Please wait</p>
+     <section id="summary"></section>
+     <section id="students-list"></section>
+   </div>
+   ```
+   Найдите заголовок и описание, проверьте их наличие, измените текст через `textContent` и добавьте классы `page-title` и `description--ready`.
 
-5. Проверьте три сценария рендера:
-   - полный каталог;
-   - только featured-товары;
-   - пустой результат.
+   Ожидаемый текст заголовка: `Course results`.
+2. Создайте в HTML список изученных технологий:
 
-6. В конце JS-файла добавьте короткий комментарий:
-   - где вы использовали `textContent`;
-   - где выбрали `innerHTML`;
-   - почему карточки удобнее собирать именно так;
-   - какие ошибки повторного рендера вы специально исключили.
+   ```html
+   <ul id="technologies">
+     <li class="technology">HTML</li>
+     <li class="technology">CSS</li>
+     <li class="technology">JavaScript</li>
+     <li class="technology">Vite</li>
+   </ul>
+   ```
+   Получите все элементы `.technology` через `querySelectorAll`, добавьте каждому класс `technology--visible` и создайте массив их текстов.
+
+   Ожидаемый массив: `["HTML", "CSS", "JavaScript", "Vite"]`.
+3. Добавьте в HTML информационный блок:
+
+   ```html
+   <article id="course-info" data-course-id="7" data-level="basic">
+     <img id="course-image" src="./images/placeholder.jpg" alt="">
+   </article>
+   ```
+   Через JavaScript:
+
+   - получите `courseId` через `dataset` и преобразуйте его в число;
+   - измените `data-level` на `intermediate`;
+   - добавьте `data-status="active"`;
+   - замените `src` изображения;
+   - задайте `alt="Students learning JavaScript"`;
+   - добавьте и затем удалите атрибут `title`.
+4. Напишите функцию `createMessage(text, type)`.
+
+   Примеры вызова:
+
+   ```javascript
+   createMessage("Data loaded", "success");
+   createMessage("Students not found", "warning");
+   ```
+   Функция возвращает элемент `p` с классами `message` и `message--${type}`, атрибутом `data-type` и безопасно записанным текстом.
+
+   Первый вызов должен создать:
+
+   ```html
+   <p class="message message--success" data-type="success">Data loaded</p>
+   ```
+5. Напишите функцию `createNavigation(items)`, которая создает и возвращает такую структуру:
+
+   ```html
+   <nav aria-label="Main navigation">
+     <ul class="navigation__list">
+       <li><a class="navigation__link" href="./index.html">Home</a></li>
+       <!-- остальные ссылки создаются из navigationItems -->
+     </ul>
+   </nav>
+   ```
+   Текущая ссылка должна дополнительно получить класс `navigation__link--current` и атрибут `aria-current="page"`. Все элементы создавайте через `createElement`, текст записывайте через `textContent`.
+6. Напишите функцию `createPageHeader(siteName, items)`.
+
+   Пример вызова:
+
+   ```javascript
+   const header = createPageHeader("Frontend School", navigationItems);
+   document.body.prepend(header);
+   ```
+   Ожидаемая структура:
+
+   ```html
+   <header class="page-header">
+     <a class="page-header__logo" href="./index.html">Frontend School</a>
+     <!-- результат createNavigation(items) -->
+   </header>
+   ```
+   Используйте внутри уже готовую функцию `createNavigation`. Функция должна только создать и вернуть шапку, но не вставлять ее на страницу.
+7. Напишите функцию `createStudentCard(student)`.
+
+   Для объекта:
+
+   ```javascript
+   { id: 1, name: "Anna", score: 82, isActive: true }
+   ```
+   функция должна вернуть приблизительно такую структуру:
+
+   ```html
+   <article class="student-card student-card--passed" data-student-id="1">
+     <h2 class="student-card__name">Anna</h2>
+     <p class="student-card__score">Score: 82</p>
+     <p class="student-card__status">Active</p>
+   </article>
+   ```
+   Если балл меньше `60`, класс `student-card--passed` не добавляется. Для неактивного студента покажите текст `Inactive`.
+8. Напишите функции `createEmptyState(message)` и `renderStudents(items, container)`.
+
+   `renderStudents` должна:
+
+   - создавать карточки через `createStudentCard`;
+   - собирать их в `DocumentFragment`;
+   - заменять содержимое контейнера через `replaceChildren`;
+   - показывать `createEmptyState("Students not found")`, если массив пустой.
+
+   Проверьте последовательность:
+
+   ```javascript
+   renderStudents(students, studentsContainer);
+   renderStudents(students.filter((student) => student.score >= 60), studentsContainer);
+   renderStudents([], studentsContainer);
+   renderStudents(students, studentsContainer);
+   ```
+   После каждого вызова старые карточки не должны оставаться в контейнере.
+9. Напишите функцию `renderStudentsSummary(items, container)`.
+
+   Для массива `students` она должна показать:
+
+   - `Total: 4`;
+   - `Passed: 3`;
+   - `Active: 3`;
+   - `Average score: 72`.
+
+   Можно округлить средний балл через `Math.round`. Для пустого массива покажите сообщение `No data for summary`.
+10. Соберите итоговую страницу `Course results` из выполненных задач.
+
+    На странице должны быть:
+
+    - шапка с логотипом и навигацией;
+    - заголовок и описание курса;
+    - сводка результатов;
+    - карточки студентов;
+    - информационный блок с изображением;
+    - сообщение для пустого массива.
+
+    Вызовите функции в таком порядке:
+
+    ```javascript
+    const header = createPageHeader("Frontend School", navigationItems);
+    document.body.prepend(header);
+
+    renderStudentsSummary(students, summaryContainer);
+    renderStudents(students, studentsContainer);
+    ```
+    В конце JavaScript-файла напишите комментарий:
+
+    - где использован `textContent`;
+    - где использован `dataset`;
+    - почему повторный рендер не создает дубли;
+    - почему данные из объектов не вставляются через `innerHTML`.
